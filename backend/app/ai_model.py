@@ -565,6 +565,9 @@ def predict_student_risk(enrollment: dict[str, Any]) -> dict[str, Any]:
         2: "High",
     }
     risk_label = risk_label_map.get(int(prediction), "Low")
+    
+    # Analyze grade components for detailed weakness identification
+    grade_analysis = analyze_grade_components(enrollment)
 
     return {
         "prediction": int(prediction),
