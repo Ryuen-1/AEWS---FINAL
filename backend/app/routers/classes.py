@@ -96,9 +96,9 @@ def _matches_midterm_referral_threshold(value) -> bool:
     numeric = float(value)
     if numeric <= 0:
         return False
-    # Only refer students with MTG grades between 3.0 and 5.0
+    # Refer students with MTG grades of 2.5 and above (including 2.5, 2.75, 3.0, and 5.0)
     # This is the whole midterm grade, not CS, LAB, or MO components
-    return 3.0 <= numeric <= 5.0
+    return numeric >= 2.5
 
 
 def _build_auto_referral_reasons(enrollment: dict) -> dict[str, bool]:
