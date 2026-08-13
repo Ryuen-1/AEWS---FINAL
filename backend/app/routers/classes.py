@@ -37,6 +37,7 @@ from app.email_sender import (
     send_referral_notice_email,
     send_needs_assessment_email,
     send_student_credentials_email,
+    send_existing_account_welcome_email,
 )
 from app.schemas import (
     BatchAddStudentsRequest,
@@ -206,8 +207,28 @@ def _ensure_student_account(db, enrollment_doc: dict) -> tuple[str, str, bool]:
     })
     
     if existing_student:
-        logger.info(f"Student account already exists for {student_email}, returning empty password")
-        return student_email, "", False  # Account exists, no password needed
+        logger.info(f"Student account already exists for {student_email}")
+        logger.info(f"  Found existing student: {existing_student.get('name')}, email: {existing_student.get('email')}, id_number: {existing_student.get('id_number')}")
+        logger.info(f"  Current enrollment email: {enrollment_doc.get('student_email')}, id: {enrollment_doc.get('student_id')}")
+        
+        # If existing student has no email, update it and treat as needing credentials
+        if not existing_student.get('email'):
+            logger.info(f"  Existing student has no email, updating with: {student_email}")
+            db.students.update_one(
+                {"_id": existing_student["_id"]},
+                {"$set": {"email": student_email.lower()}}
+            )
+            # Generate a new password since they likely don't have working credentials
+            password = _generate_password()
+            password_hash = _hash_password(password)
+            db.students.update_one(
+                {"_id": existing_student["_id"]},
+                {"$set": {"password_hash": password_hash}}
+            )
+            logger.info(f"  Generated new password for student with missing email")
+            return student_email, password, True  # Treat as new account to send credentials
+        
+        return student_email, "", False  # Account exists with email, no password needed
     
     # Create new student account
     logger.info(f"Creating new student account for {student_email}")
@@ -333,6 +354,7 @@ def _send_referral_emails(db, enrollment_doc: dict, class_doc: dict, assigned_st
             logger.info(f"Refreshed enrollment, updated emails_sent: {list(emails_sent.keys())}")
     
     # Email 3: Account Credentials (only if new account and not already sent)
+    # For existing accounts, send a welcome email instead
     logger.info(f"Credentials email check - is_new_account: {is_new_account}, has_password: {bool(password)}, already_sent: {bool(emails_sent.get('credentials'))}")
     if is_new_account and password and not emails_sent.get("credentials"):
         logger.info(f"Sending credentials email to {student_email}")
@@ -356,6 +378,28 @@ def _send_referral_emails(db, enrollment_doc: dict, class_doc: dict, assigned_st
                 logger.warning(f"Failed to send credentials email to {student_email}: {error}")
         except Exception as e:
             logger.warning(f"Failed to send credentials email to {student_email}: {e}")
+    elif not is_new_account and not emails_sent.get("welcome_existing_account"):
+        # Send welcome email for existing accounts (they can use their existing credentials)
+        logger.info(f"Sending welcome email for existing account to {student_email}")
+        try:
+            success, error = send_existing_account_welcome_email(
+                student_email,
+                student_name,
+                login_url,
+                subject_code,
+                subject_name,
+            )
+            if success:
+                emails_sent["welcome_existing_account"] = datetime.now(timezone.utc).isoformat()
+                db.enrollments.update_one(
+                    {"_id": enrollment_doc["_id"]},
+                    {"$set": {"referral_emails_sent": emails_sent}}
+                )
+                logger.info(f"Welcome email for existing account sent successfully to {student_email}")
+            else:
+                logger.warning(f"Failed to send welcome email to {student_email}: {error}")
+        except Exception as e:
+            logger.warning(f"Failed to send welcome email to {student_email}: {e}")
     else:
         if not is_new_account:
             logger.info(f"Credentials email not sent - account already exists for {student_email}")
@@ -363,6 +407,8 @@ def _send_referral_emails(db, enrollment_doc: dict, class_doc: dict, assigned_st
             logger.info(f"Credentials email not sent - no password generated for {student_email}")
         elif emails_sent.get("credentials"):
             logger.info(f"Credentials email already sent to {student_email}, skipping")
+        elif emails_sent.get("welcome_existing_account"):
+            logger.info(f"Welcome email already sent to {student_email}, skipping")
         else:
             logger.info(f"Credentials email not sent - unknown reason for {student_email}")
 

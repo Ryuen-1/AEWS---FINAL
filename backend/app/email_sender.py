@@ -691,3 +691,123 @@ Academic Early Warning System
     except Exception as e:
         logger.exception("Gmail SMTP failed: %s", e)
         return False, str(e)
+
+
+def send_existing_account_welcome_email(
+    to_email: str,
+    user_name: str,
+    login_url: str,
+    subject_code: str,
+    subject_name: str,
+) -> tuple[bool, str | None]:
+    """Send welcome email to a student who already has an account (for referral)."""
+    config = _get_gmail_config()
+    host, port, user, password_var, from_email = config
+    if host is None:
+        return False, "Gmail not configured"
+
+    subject = "You have been referred to AMU - Academic Early Warning System"
+    plain_body = f"""Hello {user_name},
+
+You have been referred to the Academic Monitoring Unit (AMU) for the following class:
+
+{subject_code}: {subject_name}
+
+The Academic Early Warning System is designed to provide early support to students who may benefit from additional assistance.
+
+Please sign in to your existing student account to:
+- Complete the needs assessment form
+- View your referral details
+- Access support resources
+
+Login URL: {login_url}
+Email: {to_email}
+
+If you have any issues signing in, please contact your instructor or the AMU staff.
+
+Academic Early Warning System
+"""
+    html_body = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{subject}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f5f5f5; padding: 24px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 560px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden;">
+          <tr>
+            <td style="padding: 32px 32px 24px; text-align: center; background: linear-gradient(135deg, #059669 0%, #10b981 100%);">
+              <h1 style="margin: 0; font-size: 20px; font-weight: 700; color: #ffffff;">Academic Early Warning System</h1>
+              <p style="margin: 8px 0 0; font-size: 14px; color: rgba(255,255,255,0.9);">You have been referred to AMU</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 32px;">
+              <p style="margin: 0 0 16px; font-size: 16px; color: #374151; line-height: 1.5;">Hello {escape(user_name)},</p>
+              <p style="margin: 0 0 18px; font-size: 15px; color: #6b7280; line-height: 1.7;">You have been referred to the Academic Monitoring Unit (AMU) for support. The Academic Early Warning System is designed to provide early assistance to students who may benefit from additional academic or personal support.</p>
+              
+              <div style="margin: 20px 0; padding: 20px; border-radius: 10px; background-color: #ecfdf5; border: 1px solid #a7f3d0;">
+                <p style="margin: 0 0 12px; font-size: 13px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Class Information</p>
+                <div style="margin: 0 0 12px;">
+                  <p style="margin: 0 0 4px; font-size: 12px; color: #6b7280;">Subject Code:</p>
+                  <p style="margin: 0; font-size: 15px; color: #374151; font-weight: 600;">{escape(subject_code)}</p>
+                </div>
+                <div style="margin: 0 0 12px;">
+                  <p style="margin: 0 0 4px; font-size: 12px; color: #6b7280;">Subject Name:</p>
+                  <p style="margin: 0; font-size: 15px; color: #374151; font-weight: 600;">{escape(subject_name)}</p>
+                </div>
+              </div>
+              
+              <p style="margin: 16px 0 0; font-size: 15px; color: #6b7280; line-height: 1.7;">Please sign in to your existing student account to:</p>
+              <ul style="margin: 16px 0 0 24px; padding-left: 20px; font-size: 14px; color: #6b7280; line-height: 1.6;">
+                <li style="margin-bottom: 8px;">Complete the needs assessment form</li>
+                <li style="margin-bottom: 8px;">View your referral details</li>
+                <li style="margin-bottom: 8px;">Access support resources</li>
+              </ul>
+              
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td align="center" style="padding: 8px 0 24px;">
+                    <a href="{login_url}" style="display: inline-block; padding: 14px 28px; font-size: 15px; font-weight: 600; color: #ffffff; background: linear-gradient(135deg, #059669 0%, #10b981 100%); text-decoration: none; border-radius: 8px; box-shadow: 0 2px 4px rgba(5, 150, 105, 0.3);">Sign in to your account</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin: 16px 0 0; font-size: 13px; color: #9ca3af; line-height: 1.5;">If you have any issues signing in, please contact your instructor or the AMU staff.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 16px 32px; background-color: #f9fafb; border-top: 1px solid #e5e7eb; text-align: center;">
+              <p style="margin: 0; font-size: 12px color: #6b7280;">— Academic Early Warning System</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = from_email
+    msg["To"] = to_email
+    msg.attach(MIMEText(plain_body, "plain"))
+    msg.attach(MIMEText(html_body, "html"))
+
+    try:
+        with smtplib.SMTP(host, port, timeout=15) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(user, password_var)
+            server.sendmail(from_email, to_email, msg.as_string())
+        logger.info("Welcome email for existing account sent to %s", to_email)
+        return True, None
+    except Exception as e:
+        logger.exception("Gmail SMTP failed: %s", e)
+        return False, str(e)
