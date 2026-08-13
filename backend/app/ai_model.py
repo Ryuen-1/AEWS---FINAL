@@ -16,6 +16,8 @@ from app.ai_features import (
     DEFAULT_MODEL_FEATURE_ORDER,
     build_model_feature_dict,
     build_model_feature_row_for_order,
+    build_model_feature_row_for_legacy_model,
+    analyze_grade_components,
 )
 
 
@@ -513,7 +515,15 @@ def predict_student_risk(enrollment: dict[str, Any]) -> dict[str, Any]:
     requested_profile = _select_prediction_profile(enrollment, feature_dict)
     model_payload = get_student_risk_model()
     model, feature_order, resolved_profile = _resolve_active_model_bundle(model_payload, requested_profile)
-    feature_row = build_model_feature_row_for_order(enrollment, feature_order)
+    
+    # Use legacy feature order for existing models to ensure compatibility
+    # But still build full feature dict for analysis
+    if feature_order and len(feature_order) == 6:
+        # Legacy model with 6 features
+        feature_row = build_model_feature_row_for_legacy_model(enrollment)
+    else:
+        # New model with expanded features
+        feature_row = build_model_feature_row_for_order(enrollment, feature_order)
     
     # Convert None values to NaN for model compatibility
     feature_row = [np.nan if v is None else v for v in feature_row]
@@ -526,6 +536,8 @@ def predict_student_risk(enrollment: dict[str, Any]) -> dict[str, Any]:
 
     if model is None:
         fallback_result = _predict_with_fallback(feature_dict)
+        # Analyze grade components even for fallback predictions
+        grade_analysis = analyze_grade_components(enrollment)
         return {
             **fallback_result,
             **contributing_signals,
@@ -533,6 +545,7 @@ def predict_student_risk(enrollment: dict[str, Any]) -> dict[str, Any]:
             "feature_order": feature_order,
             "model_profile": resolved_profile or requested_profile,
             "model_path": None,
+            "grade_analysis": grade_analysis,
         }
 
     prediction = model.predict([feature_row])[0]
@@ -565,4 +578,5 @@ def predict_student_risk(enrollment: dict[str, Any]) -> dict[str, Any]:
         "feature_order": feature_order,
         "model_profile": resolved_profile or requested_profile,
         "model_path": str(resolve_model_path()) if resolve_model_path() else None,
+        "grade_analysis": grade_analysis,
     }

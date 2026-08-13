@@ -13,6 +13,9 @@ DEFAULT_MODEL_FEATURE_ORDER = [
     "academic_challenge_score",
     "external_factor_score",
     "midterm_grade",
+    "class_standing",
+    "lab_grade",
+    "major_output_grade",
 ]
 
 ACADEMIC_CHALLENGE_FIELDS = [
@@ -116,6 +119,27 @@ def build_model_feature_dict(enrollment: dict[str, Any]) -> dict[str, float | in
         )
 
     midterm_grade = _to_float(enrollment.get("midterm_grade")) or 0.0
+    
+    # Grade components for detailed analysis
+    class_standing = _to_float(enrollment.get("class_standing"))
+    if class_standing is None:
+        class_standing = _to_float(enrollment.get("midterm_class_standing_"))
+    if class_standing is None:
+        class_standing = _to_float(enrollment.get("finals_class_standing_"))
+    if class_standing is None:
+        class_standing = 0.0
+    
+    lab_grade = _to_float(enrollment.get("laboratory"))
+    if lab_grade is None:
+        lab_grade = _to_float(enrollment.get("lab"))
+    if lab_grade is None:
+        lab_grade = 0.0
+    
+    major_output_grade = _to_float(enrollment.get("major_output"))
+    if major_output_grade is None:
+        major_output_grade = _to_float(enrollment.get("mo"))
+    if major_output_grade is None:
+        major_output_grade = 0.0
 
     features = {
         "previous_gpa": float(previous_gpa),
@@ -124,9 +148,137 @@ def build_model_feature_dict(enrollment: dict[str, Any]) -> dict[str, float | in
         "academic_challenge_score": float(academic_challenge_score),
         "external_factor_score": float(external_factor_score),
         "midterm_grade": float(midterm_grade),
+        "class_standing": float(class_standing),
+        "lab_grade": float(lab_grade),
+        "major_output_grade": float(major_output_grade),
     }
 
     return features
+
+
+def analyze_grade_components(enrollment: dict[str, Any]) -> dict[str, Any]:
+    """Analyze grade components to identify specific weaknesses.
+    
+    Returns a dict with:
+    - weakness_areas: list of areas where student is struggling
+    - strongest_area: the area with best performance
+    - analysis_summary: text description of the analysis
+    """
+    class_standing = _to_float(enrollment.get("class_standing"))
+    if class_standing is None:
+        class_standing = _to_float(enrollment.get("midterm_class_standing_"))
+    if class_standing is None:
+        class_standing = _to_float(enrollment.get("finals_class_standing_"))
+    
+    lab_grade = _to_float(enrollment.get("laboratory"))
+    if lab_grade is None:
+        lab_grade = _to_float(enrollment.get("lab"))
+    
+    major_output_grade = _to_float(enrollment.get("major_output"))
+    if major_output_grade is None:
+        major_output_grade = _to_float(enrollment.get("mo"))
+    
+    # For BukSU grading: 1.0 = best, 5.0 = worst
+    # But percentage grades might also be used (0-100 scale)
+    # We'll handle both cases
+    def normalize_grade(grade):
+        if grade is None:
+            return None
+        if grade > 5.0:  # Assume percentage scale
+            # Convert percentage to 1-5 scale
+            return 5.0 - (grade / 100.0 * 4.0)
+        return grade  # Already in 1-5 scale
+    
+    cs_normalized = normalize_grade(class_standing)
+    lab_normalized = normalize_grade(lab_grade)
+    mo_normalized = normalize_grade(major_output_grade)
+    
+    # Analyze weaknesses (higher = worse in 1-5 scale)
+    weakness_areas = []
+    grade_analysis = {}
+    
+    if cs_normalized is not None and cs_normalized >= 3.0:
+        weakness_areas.append("class_standing")
+        grade_analysis["class_standing"] = {
+            "value": class_standing,
+            "normalized": cs_normalized,
+            "status": "weak"
+        }
+    elif cs_normalized is not None:
+        grade_analysis["class_standing"] = {
+            "value": class_standing,
+            "normalized": cs_normalized,
+            "status": "acceptable"
+        }
+    
+    if lab_normalized is not None and lab_normalized >= 3.0:
+        weakness_areas.append("laboratory")
+        grade_analysis["laboratory"] = {
+            "value": lab_grade,
+            "normalized": lab_normalized,
+            "status": "weak"
+        }
+    elif lab_normalized is not None:
+        grade_analysis["laboratory"] = {
+            "value": lab_grade,
+            "normalized": lab_normalized,
+            "status": "acceptable"
+        }
+    
+    if mo_normalized is not None and mo_normalized >= 3.0:
+        weakness_areas.append("major_output")
+        grade_analysis["major_output"] = {
+            "value": major_output_grade,
+            "normalized": mo_normalized,
+            "status": "weak"
+        }
+    elif mo_normalized is not None:
+        grade_analysis["major_output"] = {
+            "value": major_output_grade,
+            "normalized": mo_normalized,
+            "status": "acceptable"
+        }
+    
+    # Find strongest area
+    valid_grades = {
+        "class_standing": cs_normalized,
+        "laboratory": lab_normalized,
+        "major_output": mo_normalized
+    }
+    valid_grades = {k: v for k, v in valid_grades.items() if v is not None}
+    
+    strongest_area = None
+    if valid_grades:
+        strongest_area = min(valid_grades, key=valid_grades.get)  # Lowest = best
+    
+    # Generate analysis summary
+    summary_parts = []
+    if weakness_areas:
+        area_names = {
+            "class_standing": "class standing",
+            "laboratory": "laboratory work", 
+            "major_output": "major outputs/projects"
+        }
+        weakness_names = [area_names.get(area, area) for area in weakness_areas]
+        summary_parts.append(f"Student shows weakness in: {', '.join(weakness_names)}")
+    
+    if strongest_area:
+        area_names = {
+            "class_standing": "class standing",
+            "laboratory": "laboratory work",
+            "major_output": "major outputs/projects"
+        }
+        summary_parts.append(f"Strongest performance in: {area_names.get(strongest_area, strongest_area)}")
+    
+    if not summary_parts:
+        summary_parts.append("Grade component analysis: No significant weaknesses detected")
+    
+    return {
+        "weakness_areas": weakness_areas,
+        "strongest_area": strongest_area,
+        "grade_analysis": grade_analysis,
+        "analysis_summary": ". ".join(summary_parts)
+    }
 
 
 def build_model_feature_row(enrollment: dict[str, Any]) -> list[float | int]:
@@ -161,8 +313,40 @@ def build_model_feature_row_for_order(
     # GPA: 0.0 means no data yet (missing), 5.0 is actual failing grade
     # Attendance: 0.0% means never attended (actual zero)
     # Failed subjects: 0 means no failures (actual zero)
+    # Grade components: 0.0 might mean missing data or actual zero - treat as None if missing
     result = []
     for name in feature_order:
+        value = features.get(name, 0.0)
+        
+        # For GPA, 0.0 means missing data - use None instead
+        if name == "previous_gpa" and value == 0.0:
+            result.append(None)
+        # For grade components, 0.0 might mean missing data - use None
+        elif name in ("class_standing", "lab_grade", "major_output_grade") and value == 0.0:
+            result.append(None)
+        else:
+            result.append(value)
+    
+    return result
+
+
+def build_model_feature_row_for_legacy_model(enrollment: dict[str, Any]) -> list[float | int]:
+    """Return model features in the legacy 6-feature order for compatibility with existing models."""
+    
+    features = build_model_feature_dict(enrollment)
+    
+    # Use only the original 6 features for legacy model compatibility
+    legacy_order = [
+        "previous_gpa",
+        "failed_subject_count", 
+        "attendance_rate",
+        "academic_challenge_score",
+        "external_factor_score",
+        "midterm_grade",
+    ]
+    
+    result = []
+    for name in legacy_order:
         value = features.get(name, 0.0)
         
         # For GPA, 0.0 means missing data - use None instead

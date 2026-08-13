@@ -262,6 +262,34 @@ export default function PredictionResultsModal({
                         </div>
                       </section>
 
+                      {prediction.grade_analysis && prediction.grade_analysis.weakness_areas && prediction.grade_analysis.weakness_areas.length > 0 && (
+                        <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="h-4 w-4 text-amber-600" />
+                              <h3 className="text-sm font-semibold text-amber-900">Grade Component Analysis</h3>
+                            </div>
+                            <div className="space-y-2">
+                              <p className="text-sm text-amber-800">{prediction.grade_analysis.analysis_summary}</p>
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {prediction.grade_analysis.weakness_areas.map((area) => {
+                                  const areaLabels = {
+                                    'class_standing': 'Class Standing',
+                                    'laboratory': 'Laboratory Work',
+                                    'major_output': 'Major Outputs'
+                                  }
+                                  return (
+                                    <span key={area} className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                      {areaLabels[area] || area}
+                                    </span>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+                      )}
+
                       <section className="rounded-2xl border border-slate-200 bg-white p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div>
@@ -294,6 +322,31 @@ export default function PredictionResultsModal({
                               })}
                             </div>
                           </div>
+
+                          {prediction.grade_analysis && prediction.grade_analysis.weakness_areas && prediction.grade_analysis.weakness_areas.length > 0 && (
+                            <div>
+                              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500">Recommended Support Focus</label>
+                              <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                                <p className="text-sm text-amber-900">
+                                  Based on grade component analysis, consider focusing support on:
+                                </p>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {prediction.grade_analysis.weakness_areas.map((area) => {
+                                    const supportSuggestions = {
+                                      'class_standing': 'Academic tutoring and study skills',
+                                      'laboratory': 'Hands-on practice and lab assistance',
+                                      'major_output': 'Project guidance and output support'
+                                    }
+                                    return (
+                                      <span key={area} className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                        {supportSuggestions[area] || area}
+                                      </span>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          )}
 
                           {supportRouting ? (
                             <div className="flex items-start gap-2 text-sm text-slate-600">
