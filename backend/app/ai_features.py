@@ -181,6 +181,7 @@ def analyze_grade_components(enrollment: dict[str, Any]) -> dict[str, Any]:
     # For BukSU grading: 1.0 = best, 5.0 = worst
     # But percentage grades might also be used (0-100 scale)
     # We'll handle both cases
+    # Weakness threshold: 2.5 and above (matches referral system)
     def normalize_grade(grade):
         if grade is None:
             return None
@@ -194,10 +195,11 @@ def analyze_grade_components(enrollment: dict[str, Any]) -> dict[str, Any]:
     mo_normalized = normalize_grade(major_output_grade)
     
     # Analyze weaknesses (higher = worse in 1-5 scale)
+    # Use 2.5 threshold to match referral system (2.5 and above = weak/failing)
     weakness_areas = []
     grade_analysis = {}
     
-    if cs_normalized is not None and cs_normalized >= 3.0:
+    if cs_normalized is not None and cs_normalized >= 2.5:
         weakness_areas.append("class_standing")
         grade_analysis["class_standing"] = {
             "value": class_standing,
@@ -211,7 +213,7 @@ def analyze_grade_components(enrollment: dict[str, Any]) -> dict[str, Any]:
             "status": "acceptable"
         }
     
-    if lab_normalized is not None and lab_normalized >= 3.0:
+    if lab_normalized is not None and lab_normalized >= 2.5:
         weakness_areas.append("laboratory")
         grade_analysis["laboratory"] = {
             "value": lab_grade,
@@ -225,7 +227,7 @@ def analyze_grade_components(enrollment: dict[str, Any]) -> dict[str, Any]:
             "status": "acceptable"
         }
     
-    if mo_normalized is not None and mo_normalized >= 3.0:
+    if mo_normalized is not None and mo_normalized >= 2.5:
         weakness_areas.append("major_output")
         grade_analysis["major_output"] = {
             "value": major_output_grade,
