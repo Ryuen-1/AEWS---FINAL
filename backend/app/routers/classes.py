@@ -612,6 +612,11 @@ _SUBJECT_CODE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+_SECTION_CODE_PATTERN = re.compile(
+    r"(?:section)\s*code\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9_./\- ]{1,20})",
+    re.IGNORECASE,
+)
+
 
 def _normalize_cell(value) -> str:
     if value is None:
@@ -2024,6 +2029,15 @@ def _extract_subject_code_from_text(text: str) -> str | None:
     return None
 
 
+def _extract_section_code_from_text(text: str) -> str | None:
+    if not text:
+        return None
+    match = _SECTION_CODE_PATTERN.search(text)
+    if match:
+        return match.group(1).strip()
+    return None
+
+
 def _extract_subject_code_from_values(values: list[str]) -> str | None:
     # Pattern 1: same cell contains "Course Code: ETCH423A"
     for value in values:
@@ -2039,6 +2053,24 @@ def _extract_subject_code_from_values(values: list[str]) -> str | None:
                 extracted = _normalize_subject_code_candidate(candidate)
                 if extracted:
                     return extracted
+
+    return None
+
+
+def _extract_section_code_from_values(values: list[str]) -> str | None:
+    # Pattern 1: same cell contains "Section Code: T205"
+    for value in values:
+        extracted = _extract_section_code_from_text(value)
+        if extracted:
+            return extracted
+
+    # Pattern 2: one cell is label and next cell is the code value
+    for idx, value in enumerate(values):
+        normalized = _normalize_cell(value).lower().strip().rstrip(":")
+        if normalized in ("section code", "section"):
+            for candidate in values[idx + 1: idx + 4]:
+                if candidate and _normalize_cell(candidate).strip():
+                    return _normalize_cell(candidate).strip()
 
     return None
 
@@ -2069,11 +2101,48 @@ def _extract_labeled_value_from_values(values: list[str], labels: tuple[str, ...
 
 
 def _extract_section_code_from_file(file_path: Path) -> str | None:
-    return _extract_labeled_metadata_from_file(
-        file_path,
-        labels=("section", "section code", "sec"),
-        normalizer=_normalize_section_code_candidate,
-    )
+    ext = file_path.suffix.lower()
+
+    if ext == ".xlsx" and _HAS_OPENPYXL:
+        wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+        try:
+            for sheet_name in wb.sheetnames:
+                ws = wb[sheet_name]
+                for row in ws.iter_rows(min_row=1, max_row=50, values_only=True):
+                    values = [_normalize_cell(cell) for cell in row]
+                    extracted = _extract_section_code_from_values(values)
+                    if extracted:
+                        return extracted
+        finally:
+            wb.close()
+
+    if ext == ".docx" and _HAS_PYTHON_DOCX:
+        doc = Document(file_path)
+
+        for paragraph in doc.paragraphs:
+            extracted = _extract_section_code_from_text(paragraph.text)
+            if extracted:
+                return extracted
+
+        for table in doc.tables:
+            for row in table.rows:
+                values = [_normalize_cell(cell.text) for cell in row.cells]
+                extracted = _extract_section_code_from_values(values)
+                if extracted:
+                    return extracted
+
+    if ext == ".csv":
+        with open(file_path, newline='', encoding='utf-8') as fh:
+            reader = csv.reader(fh)
+            for index, row in enumerate(reader):
+                if index >= 50:
+                    break
+                values = [_normalize_cell(cell) for cell in row]
+                extracted = _extract_section_code_from_values(values)
+                if extracted:
+                    return extracted
+
+    return None
 
 
 def _extract_subject_name_from_file(file_path: Path) -> str | None:
@@ -2278,6 +2347,11 @@ def _validate_upload_file_matches_class(db, file_path: Path, class_doc: dict, *,
                 f"but found '{_extract_subject_name_from_file(file_path)}'."
             ),
         )
+        
+    # For attendance files, be more lenient - if extraction fails, allow upload but log warning
+    if upload_type == "attendance" and not extracted_subject_code and not extracted_section:
+        logger.warning(f"Attendance file metadata extraction failed, but allowing upload")
+        return
 
 
 def _extract_subject_code_from_file(file_path: Path) -> str | None:
