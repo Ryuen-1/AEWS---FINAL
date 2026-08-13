@@ -330,31 +330,3 @@ def build_model_feature_row_for_order(
             result.append(value)
     
     return result
-
-
-def build_model_feature_row_for_legacy_model(enrollment: dict[str, Any]) -> list[float | int]:
-    """Return model features in the legacy 6-feature order for compatibility with existing models."""
-    
-    features = build_model_feature_dict(enrollment)
-    
-    # Use only the original 6 features for legacy model compatibility
-    legacy_order = [
-        "previous_gpa",
-        "failed_subject_count", 
-        "attendance_rate",
-        "academic_challenge_score",
-        "external_factor_score",
-        "midterm_grade",
-    ]
-    
-    result = []
-    for name in legacy_order:
-        value = features.get(name, 0.0)
-        
-        # For GPA, 0.0 means missing data - use None instead
-        if name == "previous_gpa" and value == 0.0:
-            result.append(None)
-        else:
-            result.append(value)
-    
-    return result

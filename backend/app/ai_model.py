@@ -16,14 +16,13 @@ from app.ai_features import (
     DEFAULT_MODEL_FEATURE_ORDER,
     build_model_feature_dict,
     build_model_feature_row_for_order,
-    build_model_feature_row_for_legacy_model,
     analyze_grade_components,
 )
 
 
-DEFAULT_MODEL_FILENAME = "xgboost_student_risk.pkl"
-DEFAULT_NATIVE_MODEL_FILENAME = "xgboost_student_risk.json"
-DEFAULT_MODEL_METRICS_FILENAME = "xgboost_student_risk_metrics.json"
+DEFAULT_MODEL_FILENAME = "xgboost_student_risk_with_components.pkl"
+DEFAULT_NATIVE_MODEL_FILENAME = "xgboost_student_risk_with_components.json"
+DEFAULT_MODEL_METRICS_FILENAME = "xgboost_student_risk_with_components_metrics.json"
 
 
 def _format_activity_title(column_name: str) -> str:
@@ -515,15 +514,7 @@ def predict_student_risk(enrollment: dict[str, Any]) -> dict[str, Any]:
     requested_profile = _select_prediction_profile(enrollment, feature_dict)
     model_payload = get_student_risk_model()
     model, feature_order, resolved_profile = _resolve_active_model_bundle(model_payload, requested_profile)
-    
-    # Use legacy feature order for existing models to ensure compatibility
-    # But still build full feature dict for analysis
-    if feature_order and len(feature_order) == 6:
-        # Legacy model with 6 features
-        feature_row = build_model_feature_row_for_legacy_model(enrollment)
-    else:
-        # New model with expanded features
-        feature_row = build_model_feature_row_for_order(enrollment, feature_order)
+    feature_row = build_model_feature_row_for_order(enrollment, feature_order)
     
     # Convert None values to NaN for model compatibility
     feature_row = [np.nan if v is None else v for v in feature_row]

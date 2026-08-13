@@ -28,6 +28,10 @@ NEEDS_GROUPED_CSV_PATH = DATA_DIR / "Needs-Assessment-Sample-with-1000-rows__Buk
 MODEL_JSON_PATH = BASE_DIR / "backend" / "xgboost_student_risk.json"
 MODEL_PKL_PATH = BASE_DIR / "backend" / "xgboost_student_risk.pkl"
 MODEL_METRICS_PATH = BASE_DIR / "backend" / "xgboost_student_risk_metrics.json"
+# New model with grade components
+MODEL_JSON_PATH_COMPONENTS = BASE_DIR / "backend" / "xgboost_student_risk_with_components.json"
+MODEL_PKL_PATH_COMPONENTS = BASE_DIR / "backend" / "xgboost_student_risk_with_components.pkl"
+MODEL_METRICS_PATH_COMPONENTS = BASE_DIR / "backend" / "xgboost_student_risk_with_components_metrics.json"
 PROFILE_MODEL_JSON_TEMPLATE = "xgboost_student_risk_{profile}.json"
 MAX_HISTORY_ENTRIES = 10
 
@@ -42,6 +46,17 @@ FEATURE_PROFILES: dict[str, list[str]] = {
         "academic_challenge_score",
         "external_factor_score",
         "midterm_grade",
+    ],
+    "midterm_attendance_needs_with_components": [
+        "previous_gpa",
+        "failed_subject_count",
+        "attendance_rate",
+        "academic_challenge_score",
+        "external_factor_score",
+        "midterm_grade",
+        "class_standing",
+        "lab_grade",
+        "major_output_grade",
     ],
 }
 
@@ -286,6 +301,11 @@ def load_training_frame(
     )
     merged["attendance_rate"] = merged["Attendance_Rate"] * 100.0
     merged["risk_label"] = merged["Final_Grade"].apply(map_risk_label)
+    
+    # Add grade component features
+    merged["class_standing"] = merged["Midterm_CS_Equivalent"]
+    merged["lab_grade"] = merged["Midterm_LAB_Equivalent"]
+    merged["major_output_grade"] = merged["Midterm_MO_Equivalent"]
 
     feature_columns = [
         "Previous GPA",
@@ -294,6 +314,9 @@ def load_training_frame(
         "academic_challenge_score",
         "external_factor_score",
         "Midterm_Grade",
+        "class_standing",
+        "lab_grade",
+        "major_output_grade",
     ]
 
     renamed = merged[feature_columns + ["risk_label"]].rename(
@@ -303,7 +326,7 @@ def load_training_frame(
             "Midterm_Grade": "midterm_grade",
         }
     )
-    return renamed, FEATURE_PROFILES["midterm_attendance_needs"]
+    return renamed, FEATURE_PROFILES["midterm_attendance_needs_with_components"]
 
 
 def _clean_feature_matrix(
@@ -497,7 +520,7 @@ def main() -> None:
     parser.add_argument(
         "--profile",
         choices=sorted(FEATURE_PROFILES.keys()),
-        default="midterm_attendance_needs",
+        default="midterm_attendance_needs_with_components",
         help="Feature profile to train and save.",
     )
     parser.add_argument(
@@ -581,9 +604,19 @@ def main() -> None:
         if isinstance(profile_model, XGBClassifier):
             profile_model.save_model(profile_json_path)
 
+    # Determine model paths based on profile
+    if args.profile == "midterm_attendance_needs_with_components":
+        model_json_path = MODEL_JSON_PATH_COMPONENTS
+        model_pkl_path = MODEL_PKL_PATH_COMPONENTS
+        model_metrics_path = MODEL_METRICS_PATH_COMPONENTS
+    else:
+        model_json_path = MODEL_JSON_PATH
+        model_pkl_path = MODEL_PKL_PATH
+        model_metrics_path = MODEL_METRICS_PATH
+
     if isinstance(selected_model, XGBClassifier):
-        selected_model.save_model(MODEL_JSON_PATH)
-    with MODEL_PKL_PATH.open("wb") as handle:
+        selected_model.save_model(model_json_path)
+    with model_pkl_path.open("wb") as handle:
         pickle.dump(
             {
                 "profiles": bundled_models,
@@ -617,9 +650,9 @@ def main() -> None:
         "history": [],
     }
 
-    if MODEL_METRICS_PATH.exists():
+    if model_metrics_path.exists():
         try:
-            existing_payload = json.loads(MODEL_METRICS_PATH.read_text(encoding="utf-8"))
+            existing_payload = json.loads(model_metrics_path.read_text(encoding="utf-8"))
             existing_history = existing_payload.get("history")
             if isinstance(existing_history, list):
                 metrics_payload["history"] = existing_history
@@ -639,14 +672,14 @@ def main() -> None:
     }
     metrics_payload["history"].append(history_entry)
     metrics_payload["history"] = metrics_payload["history"][-MAX_HISTORY_ENTRIES:]
-    MODEL_METRICS_PATH.write_text(json.dumps(metrics_payload, indent=2), encoding="utf-8")
+    model_metrics_path.write_text(json.dumps(metrics_payload, indent=2), encoding="utf-8")
 
-    print(f"Saved model PKL to: {MODEL_PKL_PATH}")
+    print(f"Saved model PKL to: {model_pkl_path}")
     if isinstance(selected_model, XGBClassifier):
-        print(f"Saved model JSON to: {MODEL_JSON_PATH}")
+        print(f"Saved model JSON to: {model_json_path}")
     else:
         print(f"Skipped JSON export because saved model is: {selected_model_name}")
-    print(f"Saved metrics to: {MODEL_METRICS_PATH}")
+    print(f"Saved metrics to: {model_metrics_path}")
 
 
 if __name__ == "__main__":
