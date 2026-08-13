@@ -105,7 +105,7 @@ def _build_auto_referral_reasons(enrollment: dict) -> dict[str, bool]:
     midterm_grade = enrollment.get("midterm_grade")
 
     reasons = {
-        "mtg_grade_3_to_5": _matches_midterm_referral_threshold(midterm_grade),
+        "mtg_grade_2_5_and_above": _matches_midterm_referral_threshold(midterm_grade),
     }
     
     # Store the actual MTG grade value for display purposes
@@ -119,7 +119,7 @@ def _build_auto_referral_reasons(enrollment: dict) -> dict[str, bool]:
 
 
 AUTO_REFERRAL_REASON_KEYS = (
-    "mtg_grade_3_to_5",
+    "mtg_grade_2_5_and_above",
     "mtg_grade_value",
 )
 

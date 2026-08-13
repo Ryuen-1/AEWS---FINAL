@@ -697,8 +697,8 @@ def _serialize_public_invitation(doc: dict) -> dict[str, Any]:
     referral_reasons = doc.get("referral_reasons") or {}
     referral_reason_message = ""
     
-    # Check if referral was due to MTG grade between 3.0 and 5.0
-    if referral_reasons.get("mtg_grade_3_to_5"):
+    # Check if referral was due to MTG grade of 2.5 and above
+    if referral_reasons.get("mtg_grade_2_5_and_above"):
         # Get the actual MTG grade value from referral reasons or enrollment
         mtg_value = referral_reasons.get("mtg_grade_value") or doc.get("midterm_grade")
         if mtg_value is not None:
