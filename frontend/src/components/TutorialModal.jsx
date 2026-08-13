@@ -1,0 +1,107 @@
+import { useEffect } from 'react'
+import { X, BookOpen, AlertTriangle, ClipboardList, Users, BarChart3, HelpCircle, FileText, User, Building2 } from 'lucide-react'
+import HeaderAwareOverlay from './HeaderAwareOverlay'
+
+const INSTRUCTOR_ITEMS = [
+  { icon: BookOpen, term: 'My Classes', desc: 'Your courses. Each card shows student count and gives you direct access to grades, attendance, and class details.' },
+  { icon: ClipboardList, term: 'Referrals to AMU', desc: 'When a student needs support, send a referral to AMU with a note so they can review the case and coordinate follow-up support.' },
+  { icon: Users, term: 'Student List', desc: 'All students across your classes in one place with search and course filtering.' },
+]
+
+const ADMIN_ITEMS = [
+  { icon: BarChart3, term: 'System Overview', desc: 'KPIs, departments, instructors, and system-wide trends. Filter by department.' },
+  { icon: User, term: 'Pending Accounts', desc: 'Review and approve or decline new instructor and AMU Staff registration requests.' },
+  { icon: BarChart3, term: 'System Analytics', desc: 'Usage and performance metrics across the institution.' },
+  { icon: FileText, term: 'Institution Reports', desc: 'Download general institutional reports covering summaries and departments.' },
+  { icon: Users, term: 'User Accounts', desc: 'Manage all user accounts (instructors, admins, AMU Staff). View, edit roles, archive, or delete.' },
+  { icon: Building2, term: 'Departments & Instructors', desc: 'Department stats and instructor lists. Use Overview sub-tabs to switch between them.' },
+]
+
+const AMUSTAFF_ITEMS = [
+  { icon: BarChart3, term: 'Overview', desc: 'Summary of referrals and monitored classes. Your home view after login.' },
+  { icon: AlertTriangle, term: 'Referrals', desc: 'Students referred to AMU for support. Review these referrals and use them to guide outreach, needs assessment, and prediction work.' },
+  { icon: ClipboardList, term: 'Needs Assessments', desc: 'Upload student needs assessments here so AMU can connect them with attendance and midterm grade data for prediction.' },
+  { icon: Users, term: 'Reports', desc: 'Generate or view reports for your work.' },
+]
+
+const TUTORIAL_CONFIG = {
+  instructor: { title: 'Welcome to the Instructor dashboard', items: INSTRUCTOR_ITEMS },
+  admin: { title: 'Welcome to the Administrator dashboard', items: ADMIN_ITEMS },
+  'amu-staff': { title: 'Welcome to the AMU Staff dashboard', items: AMUSTAFF_ITEMS },
+}
+
+export default function TutorialModal({ variant = 'instructor', onClose }) {
+  // Disable background scroll when modal is open
+  useEffect(() => {
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
+    
+    return () => {
+      document.documentElement.style.overflow = 'auto'
+      document.body.style.overflow = 'auto'
+    }
+  }, [])
+
+  const config = TUTORIAL_CONFIG[variant] || TUTORIAL_CONFIG.instructor
+  const { title, items } = config
+
+  return (
+    <HeaderAwareOverlay
+      role="dialog"
+      labelledBy="tutorial-title"
+      className="flex items-start justify-center bg-black/50"
+      panelClassName="max-w-md h-auto"
+      contentClassName="flex-none overflow-visible rounded-xl bg-white shadow-xl"
+    >
+      <div className="bg-white rounded-xl shadow-xl overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
+          <div className="flex items-center gap-2">
+            <HelpCircle className="w-5 h-5 text-blue-600" />
+            <h2 id="tutorial-title" className="text-base font-bold text-slate-900">{title}</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="clean-scrollbar px-4 py-3 overflow-y-auto">
+          <p className="text-xs text-slate-600 mb-3">
+            Here are the main features and terms you’ll see so nothing feels confusing:
+          </p>
+          <ul className="space-y-3">
+            {items.map((item, i) => {
+              const Icon = item.icon
+              return (
+                <li key={i} className="flex gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0">
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-900 text-xs">{item.term}</p>
+                    <p className="text-slate-600 text-xs mt-0.5">{item.desc}</p>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+          <p className="text-[11px] text-slate-500 mt-3">
+            You can replay this from Settings anytime, or open Help (?) on the login page for FAQ.
+          </p>
+        </div>
+        <div className="px-4 py-3 border-t border-slate-200 bg-slate-50">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    </HeaderAwareOverlay>
+  )
+}

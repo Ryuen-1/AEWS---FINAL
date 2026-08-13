@@ -1,0 +1,1519 @@
+"""
+Admin-only endpoints for system overview: KPIs, departments (from instructors only),
+students at risk, department stats, instructors list, trends, and needs-assessment form config.
+"""
+from datetime import datetime, timezone
+import copy
+
+from bson import ObjectId
+from fastapi import APIRouter, HTTPException, Depends
+from pymongo.errors import ServerSelectionTimeoutError
+
+from app.activity_log_utils import create_activity_log
+from app.authz import get_current_actor
+from app.ai_model import load_model_metrics
+from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS
+from app.email_sender import send_account_decision_email
+from app.notification_utils import create_notification
+from app.schemas import NeedsAssessmentFormConfig, NeedsAssessmentFormUpdateRequest
+
+
+# ----- RBAC Helper: Ensure caller is admin -----
+
+def require_admin_role(actor: dict = Depends(get_current_actor)):
+    """Dependency to enforce admin-only access."""
+    normalized_role = (actor.get("role") or "").strip().lower()
+    if normalized_role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return normalized_role
+
+
+router = APIRouter(dependencies=[Depends(require_admin_role)])
+
+NEEDS_ASSESSMENT_FORM_KEY = "default_needs_assessment"
+NEEDS_ASSESSMENT_CORE_FIELDS = [
+    ("general_info", "General Information", "", [
+        {"id": "admission_type", "name": "admission_type", "label": "Admission Type", "type": "text", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 1, "active": True, "locked": True},
+        {"id": "academic_adviser", "name": "academic_adviser", "label": "Academic Adviser", "type": "text", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 2, "active": True, "locked": True},
+    ]),
+    ("previous_term", "GPA/Academic Performance from Previous Term", "", [
+        {"id": "previous_year_semester", "name": "previous_year_semester", "label": "Previous Year & Semester", "type": "text", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 1, "active": True, "locked": True},
+        {"id": "previous_gpa", "name": "previous_gpa", "label": "Previous GPA", "type": "number", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 2, "active": True, "locked": True},
+        {"id": "failed_subject_count", "name": "failed_subject_count", "label": "No. of Subjects Failed (If any)", "type": "number", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 3, "active": True, "locked": True},
+    ]),
+    ("attendance_record", "Attendance Record", "", [
+        {"id": "regular_attendance", "name": "regular_attendance", "label": "Regular Attendance", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 1, "active": True, "locked": True},
+        {"id": "frequently_absent_or_late", "name": "frequently_absent_or_late", "label": "Frequently Absent / Late", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 2, "active": True, "locked": True},
+    ]),
+    ("current_academic_standing", "Current Academic Standing", "", [
+        {"id": "on_probationary_status", "name": "on_probationary_status", "label": "On Probationary Status", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 1, "active": True, "locked": True},
+        {"id": "grade_2_5_or_below", "name": "grade_2_5_or_below", "label": "At least one subject has a grade of 2.5", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 2, "active": True, "locked": True},
+        {"id": "gwa_2_5_or_below", "name": "gwa_2_5_or_below", "label": "GWA is 2.5 lower or below", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 3, "active": True, "locked": True},
+        {"id": "low_midterm_academic_performance", "name": "low_midterm_academic_performance", "label": "Low midterm academic performance", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 4, "active": True, "locked": True},
+        {"id": "difficulty_catching_up", "name": "difficulty_catching_up", "label": "Difficulty with catching up instructions", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 5, "active": True, "locked": True},
+    ]),
+    ("previous_support", "Previous Academic Support Received", "", [
+        {"id": "tutoring_sessions", "name": "tutoring_sessions", "label": "Tutoring Sessions", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 1, "active": True, "locked": True},
+        {"id": "peer_mentoring", "name": "peer_mentoring", "label": "Peer Mentoring", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 2, "active": True, "locked": True},
+        {"id": "faculty_consultation", "name": "faculty_consultation", "label": "Faculty Consultation", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 3, "active": True, "locked": True},
+        {"id": "counselling_sessions", "name": "counselling_sessions", "label": "Counselling Sessions", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 4, "active": True, "locked": True},
+        {"id": "no_previous_support", "name": "no_previous_support", "label": "None", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 5, "active": True, "locked": True},
+    ]),
+    ("academic_challenges", "Academic Challenges", "", [
+        {"id": "difficulty_understanding_lectures", "name": "difficulty_understanding_lectures", "label": "Difficulty in Understanding Lectures", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 1, "active": True, "locked": True},
+        {"id": "struggles_specific_subjects", "name": "struggles_specific_subjects", "label": "Struggles with Specific Subjects", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 2, "active": True, "locked": True},
+        {"id": "weak_study_habits_time_management", "name": "weak_study_habits_time_management", "label": "Weak Study Habits or Time Management", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 3, "active": True, "locked": True},
+        {"id": "low_motivation_engagement", "name": "low_motivation_engagement", "label": "Low Motivation or Engagement", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 4, "active": True, "locked": True},
+        {"id": "poor_comprehension_writing_skills", "name": "poor_comprehension_writing_skills", "label": "Poor Comprehension or Writing Skills", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 5, "active": True, "locked": True},
+    ]),
+    ("external_factors", "External/Personal Factors Affecting Performance", "", [
+        {"id": "financial_difficulties", "name": "financial_difficulties", "label": "Financial Difficulties", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 1, "active": True, "locked": True},
+        {"id": "physical_health_concerns", "name": "physical_health_concerns", "label": "Physical Health-Related Concerns", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 2, "active": True, "locked": True},
+        {"id": "family_issues", "name": "family_issues", "label": "Family Issues", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 3, "active": True, "locked": True},
+        {"id": "part_time_work_affecting_studies", "name": "part_time_work_affecting_studies", "label": "Part-Time Work Affecting Studies", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 4, "active": True, "locked": True},
+        {"id": "mental_health_concerns", "name": "mental_health_concerns", "label": "Mental Health-Related Concerns", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 5, "active": True, "locked": True},
+        {"id": "internet_issues", "name": "internet_issues", "label": "Internet / Connectivity Issues", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 6, "active": True, "locked": True},
+    ]),
+    ("additional_notes", "Additional Notes", "", [
+        {"id": "notes", "name": "notes", "label": "Additional notes", "type": "textarea", "required": False, "placeholder": "Share any details you want AMU staff to know.", "help_text": "", "options": [], "order": 1, "active": True, "locked": True},
+    ]),
+]
+
+
+def _build_default_needs_assessment_form_config() -> dict:
+    sections = []
+    for order, (section_id, title, description, fields) in enumerate(NEEDS_ASSESSMENT_CORE_FIELDS, start=1):
+        sections.append({
+            "id": section_id,
+            "title": title,
+            "description": description,
+            "order": order,
+            "fields": copy.deepcopy(fields),
+        })
+    return {
+        "key": NEEDS_ASSESSMENT_FORM_KEY,
+        "title": "Needs Assessment Form",
+        "description": "Student support follow-up form",
+        "version": 1,
+        "status": "published",
+        "is_active": True,
+        "sections": sections,
+    }
+
+
+def _normalize_form_config(form_doc: dict | None) -> dict:
+    base = copy.deepcopy(_build_default_needs_assessment_form_config())
+    if not isinstance(form_doc, dict):
+        return base
+    base["title"] = str(form_doc.get("title") or base["title"]).strip()
+    base["description"] = str(form_doc.get("description") or base["description"]).strip()
+    base["version"] = int(form_doc.get("version") or base["version"])
+    base["status"] = str(form_doc.get("status") or base["status"]).strip() or "draft"
+    base["is_active"] = bool(form_doc.get("is_active"))
+    if isinstance(form_doc.get("sections"), list):
+        base["sections"] = form_doc["sections"]
+    return base
+
+
+def _instructor_ids_by_department(db, department: str | None):
+    """Return list of instructor _id (as str) for non-archived instructors in the given department.
+    If department is None or 'all', return all non-archived instructor ids.
+    Archived instructors are excluded from system overview, analytics, and reports.
+    """
+    q = {"archived": {"$ne": True}}
+    if department and department != "all":
+        q["department"] = department
+    cursor = db.instructor.find(q, {"_id": 1})
+    return [str(doc["_id"]) for doc in cursor]
+
+
+def _student_identifier(doc: dict) -> str:
+    student_email = str(doc.get("student_email") or "").strip().lower()
+    if student_email:
+        return student_email
+    student_id = str(doc.get("student_id") or "").strip()
+    if student_id.endswith(".0") and student_id[:-2].isdigit():
+        student_id = student_id[:-2]
+    if student_id:
+        return student_id
+    student_name = str(doc.get("student_name") or "").strip()
+    if student_name:
+        return student_name
+    return str(doc.get("_id") or "")
+
+
+@router.get("/needs-assessment-form")
+def get_needs_assessment_form_config():
+    try:
+        db = get_db()
+        form_doc = db.needs_assessment_forms.find_one({"key": NEEDS_ASSESSMENT_FORM_KEY, "is_active": True})
+        return {"form": _normalize_form_config(form_doc)}
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+@router.patch("/needs-assessment-form")
+def update_needs_assessment_form_config(body: NeedsAssessmentFormUpdateRequest, actor: dict = Depends(get_current_actor)):
+    try:
+        db = get_db()
+        existing = db.needs_assessment_forms.find_one({"key": NEEDS_ASSESSMENT_FORM_KEY, "is_active": True}) or {}
+        current = _normalize_form_config(existing)
+        payload = body.model_dump(exclude_unset=True)
+        next_form = {
+            **current,
+            **{k: v for k, v in payload.items() if k != "sections"},
+        }
+        if "sections" in payload:
+            next_form["sections"] = payload["sections"]
+        parsed = NeedsAssessmentFormConfig(**next_form).model_dump()
+        version = int(existing.get("version") or current.get("version") or 1)
+        parsed["version"] = version + 1
+        parsed["updated_at"] = datetime.now(timezone.utc)
+        parsed["updated_by_id"] = actor["id"]
+        parsed["updated_by_name"] = actor.get("name", "Admin")
+        parsed["is_active"] = True
+        parsed["key"] = NEEDS_ASSESSMENT_FORM_KEY
+        if not existing:
+            parsed["created_at"] = parsed["updated_at"]
+            parsed["created_by_id"] = actor["id"]
+            parsed["created_by_name"] = actor.get("name", "Admin")
+        else:
+            parsed["created_at"] = existing.get("created_at")
+            parsed["created_by_id"] = existing.get("created_by_id")
+            parsed["created_by_name"] = existing.get("created_by_name")
+        db.needs_assessment_forms.replace_one({"key": NEEDS_ASSESSMENT_FORM_KEY, "is_active": True}, parsed, upsert=True)
+        return {"message": "Needs assessment form updated.", "form": _normalize_form_config(parsed)}
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+@router.post("/needs-assessment-form/reset-default")
+def reset_needs_assessment_form_config(actor: dict = Depends(get_current_actor)):
+    try:
+        db = get_db()
+        default_form = _build_default_needs_assessment_form_config()
+        now = datetime.now(timezone.utc)
+        existing = db.needs_assessment_forms.find_one({"key": NEEDS_ASSESSMENT_FORM_KEY, "is_active": True}) or {}
+        default_form.update({
+            "version": int(existing.get("version") or 1) + 1,
+            "updated_at": now,
+            "updated_by_id": actor["id"],
+            "updated_by_name": actor.get("name", "Admin"),
+            "created_at": existing.get("created_at", now),
+            "created_by_id": existing.get("created_by_id", actor["id"]),
+            "created_by_name": existing.get("created_by_name", actor.get("name", "Admin")),
+        })
+        db.needs_assessment_forms.replace_one({"key": NEEDS_ASSESSMENT_FORM_KEY, "is_active": True}, default_form, upsert=True)
+        return {"message": "Needs assessment form reset to default.", "form": default_form}
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+@router.get("/students/{student_identifier:path}")
+def get_student_by_email(student_identifier: str):
+    """Get enrollment summary for a student across all classes by email or student id."""
+    try:
+        from urllib.parse import unquote
+        identifier = unquote(student_identifier).strip()
+        identifier_lower = identifier.lower()
+        if not identifier:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="Invalid student identifier")
+        db = get_db()
+        enrollments = list(db.enrollments.find({
+            "$or": [
+                {"student_email": identifier_lower},
+                {"student_id": identifier},
+                {"student_id": identifier_lower},
+            ]
+        }))
+        if not enrollments:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Student not found")
+        class_ids = [str(e["class_id"]) if e.get("class_id") else "" for e in enrollments]
+        oids = [ObjectId(cid) for cid in class_ids if cid and ObjectId.is_valid(cid)]
+        classes = {str(c["_id"]): c for c in db.classes.find({"_id": {"$in": oids}})} if oids else {}
+        instructors = {}
+        for c in classes.values():
+            iid = c.get("instructor_id")
+            if iid and ObjectId.is_valid(iid):
+                inst = db.instructor.find_one({"_id": ObjectId(iid)})
+                if inst:
+                    instructors[iid] = inst
+        rows = []
+        for e in enrollments:
+            cid = str(e.get("class_id") or "")
+            c = classes.get(cid)
+            if not c:
+                continue
+            inst = instructors.get(c.get("instructor_id") or "")
+            rows.append({
+                "class_id": e["class_id"],
+                "student_id": e.get("student_id"),
+                "student_name": e.get("student_name"),
+                "subject_code": c.get("subject_code", ""),
+                "subject_name": c.get("subject_name", ""),
+                "course": (c.get("subject_code", "") + " " + c.get("subject_name", "")).strip(),
+                "instructor_id": c.get("instructor_id", ""),
+                "instructor_name": (inst.get("name", "") if inst else ""),
+                "department": (inst.get("department", "") if inst else ""),
+                "prediction_label": "External Factor" if e.get("risk_source") == "external_factors" else ("Academic Problem" if e.get("risk_source") else None),
+                "gpa": e.get("gpa"),
+                "attendance": e.get("attendance"),
+                "lms_activity": e.get("lms_activity"),
+            })
+        first = enrollments[0]
+        return {
+            "student_email": first.get("student_email"),
+            "student_id": first.get("student_id"),
+            "student_name": first.get("student_name"),
+            "enrollments": rows,
+        }
+    except ServerSelectionTimeoutError:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+@router.get("/departments")
+def list_instructor_departments():
+    """List unique department names from non-archived instructors only."""
+    try:
+        db = get_db()
+        depts = db.instructor.distinct("department", {"archived": {"$ne": True}})
+        return [d for d in sorted(depts) if d]
+    except ServerSelectionTimeoutError:
+        return []
+
+
+@router.get("/overview")
+def get_overview(department: str | None = None):
+    """KPIs for system overview. Optional department filter (instructor departments only)."""
+    try:
+        db = get_db()
+        instructor_ids = _instructor_ids_by_department(db, department)
+        if not instructor_ids and department and department != "all":
+            return {
+                "total_students": 0,
+                "at_risk_students": 0,
+                "instructors_count": 0,
+                "active_alerts": 0,
+                "at_risk_percent": 0,
+            }
+        # Classes belonging to (filtered) instructors
+        class_cursor = db.classes.find({"instructor_id": {"$in": instructor_ids}})
+        class_ids = [str(c["_id"]) for c in class_cursor]
+        total_students = db.enrollments.count_documents({"class_id": {"$in": class_ids}}) if class_ids else 0
+        at_risk_students = (
+            db.enrollments.count_documents(
+                {"class_id": {"$in": class_ids}, "flagged_for_mentoring": True}
+            )
+            if class_ids
+            else 0
+        )
+        instructors_count = len(instructor_ids)
+        at_risk_percent = round(100 * at_risk_students / total_students, 1) if total_students else 0
+        return {
+            "total_students": total_students,
+            "at_risk_students": at_risk_students,
+            "instructors_count": instructors_count,
+            "active_alerts": at_risk_students,
+            "at_risk_percent": at_risk_percent,
+        }
+    except ServerSelectionTimeoutError:
+        return {
+            "total_students": 0,
+            "at_risk_students": 0,
+            "instructors_count": 0,
+            "active_alerts": 0,
+            "at_risk_percent": 0,
+        }
+
+
+@router.get("/overview/students-at-risk")
+def list_students_at_risk(department: str | None = None):
+    """List referred students with AMU outcome context. Filter by department (instructor's)."""
+    try:
+        db = get_db()
+        instructor_ids = _instructor_ids_by_department(db, department)
+        classes = list(db.classes.find({"instructor_id": {"$in": instructor_ids}}))
+        class_ids = [str(c["_id"]) for c in classes]
+        class_by_id = {str(c["_id"]): c for c in classes}
+        instructor_by_id = {doc["_id"]: doc for doc in db.instructor.find({"archived": {"$ne": True}})}
+        rows = []
+        for doc in db.enrollments.find(
+            {"class_id": {"$in": class_ids}, "flagged_for_mentoring": True}
+        ):
+            c = class_by_id.get(doc["class_id"])
+            if not c:
+                continue
+            inst_id = c.get("instructor_id")
+            inst = instructor_by_id.get(ObjectId(inst_id)) if ObjectId.is_valid(inst_id) else None
+            inst_name = (inst.get("name") or "") if inst else ""
+            dept = (inst.get("department") or "") if inst else ""
+            course = (c.get("subject_code") or "") + " " + (c.get("subject_name") or "")
+            student_identifier = _student_identifier(doc)
+            
+            # Determine prediction label - check amu_prediction first
+            amu_prediction = doc.get("amu_prediction", {})
+            prediction_label = amu_prediction.get("prediction_label") if isinstance(amu_prediction, dict) else None
+            risk_source = doc.get("risk_source")
+            
+            if prediction_label:
+                outcome = prediction_label
+            elif risk_source == "external_factors":
+                outcome = "External Factor"
+            elif risk_source == "academic":
+                outcome = "Academic Problem"
+            elif risk_source:
+                outcome = "Academic Problem" if risk_source != "external_factors" else "External Factor"
+            else:
+                outcome = "Not predicted"
+            
+            rows.append({
+                "id": student_identifier,
+                "student_email": doc.get("student_email"),
+                "student_id": doc.get("student_id"),
+                "student_name": doc.get("student_name"),
+                "department": dept,
+                "course": course.strip(),
+                "prediction_label": outcome,
+                "instructor": inst_name,
+                "class_id": doc["class_id"],
+            })
+        return rows
+    except ServerSelectionTimeoutError:
+        return []
+
+
+@router.get("/overview/departments")
+def list_departments_stats(department: str | None = None):
+    """Per-department stats (only instructor departments). If department is set, return that one only."""
+    try:
+        db = get_db()
+        instructor_ids = _instructor_ids_by_department(db, department)
+        # Get all instructors to group by college
+        instructors = list(db.instructor.find({"_id": {"$in": [ObjectId(i) for i in instructor_ids]}}))
+        dept_to_instructor_ids = {}
+        for inst in instructors:
+            d = (inst.get("college") or inst.get("department") or "").strip()
+            if not d:
+                continue
+            sid = str(inst["_id"])
+            dept_to_instructor_ids.setdefault(d, []).append(sid)
+        classes = list(db.classes.find({"instructor_id": {"$in": instructor_ids}}))
+        class_ids = [str(c["_id"]) for c in classes]
+        inst_id_to_dept = {str(i["_id"]): (i.get("college") or i.get("department") or "").strip() for i in instructors}
+        class_to_inst = {str(c["_id"]): c.get("instructor_id") for c in classes}
+        enrollments = list(db.enrollments.find({"class_id": {"$in": class_ids}}))
+        dept_totals = {}
+        dept_at_risk = {}
+        for e in enrollments:
+            cid = e["class_id"]
+            inst_id = class_to_inst.get(cid)
+            d = inst_id_to_dept.get(inst_id, "")
+            if not d:
+                continue
+            dept_totals[d] = dept_totals.get(d, 0) + 1
+            if e.get("flagged_for_mentoring"):
+                dept_at_risk[d] = dept_at_risk.get(d, 0) + 1
+        rows = []
+        for d in sorted(dept_to_instructor_ids.keys()):
+            total = dept_totals.get(d, 0)
+            at_risk = dept_at_risk.get(d, 0)
+            rate = round(100 * at_risk / total, 1) if total else 0
+            rows.append({
+                "name": d,
+                "total": total,
+                "atRisk": at_risk,
+                "rate": rate,
+                "instructors": len(dept_to_instructor_ids[d]),
+            })
+        return rows
+    except ServerSelectionTimeoutError:
+        return []
+
+
+@router.get("/overview/instructors")
+def list_overview_instructors(department: str | None = None):
+    """Instructors with class count, student count, at-risk count. Filter by department (instructor's)."""
+    try:
+        db = get_db()
+        instructor_ids = _instructor_ids_by_department(db, department)
+        instructors = list(db.instructor.find({"_id": {"$in": [ObjectId(i) for i in instructor_ids]}}))
+        classes = list(db.classes.find({"instructor_id": {"$in": instructor_ids}}))
+        class_ids = [str(c["_id"]) for c in classes]
+        inst_class_count = {}
+        for c in classes:
+            iid = c.get("instructor_id")
+            inst_class_count[iid] = inst_class_count.get(iid, 0) + 1
+        enrollments = list(db.enrollments.find({"class_id": {"$in": class_ids}}))
+        class_to_inst = {str(c["_id"]): c.get("instructor_id") for c in classes}
+        inst_students = {}
+        inst_at_risk = {}
+        for e in enrollments:
+            iid = class_to_inst.get(e["class_id"])
+            if iid:
+                inst_students[iid] = inst_students.get(iid, 0) + 1
+                if e.get("flagged_for_mentoring"):
+                    inst_at_risk[iid] = inst_at_risk.get(iid, 0) + 1
+        rows = []
+        for inst in instructors:
+            iid = str(inst["_id"])
+            rows.append({
+                "id": iid,
+                "name": inst.get("name") or "",
+                "email": inst.get("email") or "",
+                "college": inst.get("college") or inst.get("department") or "",
+                "classes": inst_class_count.get(iid, 0),
+                "students": inst_students.get(iid, 0),
+                "atRisk": inst_at_risk.get(iid, 0),
+            })
+        return rows
+    except ServerSelectionTimeoutError:
+        return []
+
+
+@router.get("/overview/trends")
+def get_overview_trends(department: str | None = None):
+    """Trend data for chart. DB has no history; return current snapshot as a single point."""
+    try:
+        db = get_db()
+        instructor_ids = _instructor_ids_by_department(db, department)
+        class_cursor = db.classes.find({"instructor_id": {"$in": instructor_ids}})
+        class_ids = [str(c["_id"]) for c in class_cursor]
+        total = db.enrollments.count_documents({"class_id": {"$in": class_ids}}) if class_ids else 0
+        at_risk = (
+            db.enrollments.count_documents(
+                {"class_id": {"$in": class_ids}, "flagged_for_mentoring": True}
+            )
+            if class_ids
+            else 0
+        )
+        from datetime import datetime
+        month_name = datetime.utcnow().strftime("%b")
+        return [{"name": month_name, "atRisk": at_risk, "total": total, "improved": 0}]
+    except ServerSelectionTimeoutError:
+        return []
+
+
+# ----- System Analytics (real data) -----
+
+@router.get("/analytics/department-chart")
+def get_analytics_department_chart(department: str | None = None):
+    """At-risk and total students by department (instructor departments only). For bar chart."""
+    try:
+        db = get_db()
+        instructor_ids = _instructor_ids_by_department(db, department)
+        instructors = list(db.instructor.find({"_id": {"$in": [ObjectId(i) for i in instructor_ids]}}))
+        dept_to_instructor_ids = {}
+        for inst in instructors:
+            d = (inst.get("department") or "").strip()
+            if not d:
+                continue
+            dept_to_instructor_ids.setdefault(d, []).append(str(inst["_id"]))
+        classes = list(db.classes.find({"instructor_id": {"$in": instructor_ids}}))
+        class_ids = [str(c["_id"]) for c in classes]
+        class_to_inst = {str(c["_id"]): c.get("instructor_id") for c in classes}
+        inst_id_to_dept = {str(i["_id"]): (i.get("department") or "").strip() for i in instructors}
+        enrollments = list(db.enrollments.find({"class_id": {"$in": class_ids}}))
+        dept_totals = {}
+        dept_at_risk = {}
+        for e in enrollments:
+            cid = e["class_id"]
+            inst_id = class_to_inst.get(cid)
+            d = inst_id_to_dept.get(inst_id, "")
+            if not d:
+                continue
+            dept_totals[d] = dept_totals.get(d, 0) + 1
+            if e.get("flagged_for_mentoring"):
+                dept_at_risk[d] = dept_at_risk.get(d, 0) + 1
+        return [
+            {"name": d, "atRisk": dept_at_risk.get(d, 0), "total": dept_totals.get(d, 0)}
+            for d in sorted(dept_to_instructor_ids.keys())
+        ]
+    except ServerSelectionTimeoutError:
+        return []
+
+
+@router.get("/analytics/risk-distribution")
+def get_analytics_risk_distribution(department: str | None = None):
+    """Count of enrollments by AMU prediction outcome for pie chart."""
+    try:
+        db = get_db()
+        instructor_ids = _instructor_ids_by_department(db, department)
+        classes = list(db.classes.find({"instructor_id": {"$in": instructor_ids}}))
+        class_ids = [str(c["_id"]) for c in classes]
+        if not class_ids:
+            return [
+                {"name": "Academic Problem", "value": 0, "color": "#0f766e"},
+                {"name": "External Factor", "value": 0, "color": "#d97706"},
+                {"name": "Awaiting Prediction", "value": 0, "color": "#64748b"},
+            ]
+        pipeline = [
+            {"$match": {"class_id": {"$in": class_ids}}},
+            {"$group": {"_id": "$risk_source", "count": {"$sum": 1}}},
+        ]
+        cursor = db.enrollments.aggregate(pipeline)
+        counts = {}
+        for doc in cursor:
+            key = doc["_id"] if doc["_id"] in ("academic", "external_factors") else "awaiting"
+            counts[key] = counts.get(key, 0) + doc["count"]
+        return [
+            {"name": "Academic Problem", "value": counts.get("academic", 0), "color": "#0f766e"},
+            {"name": "External Factor", "value": counts.get("external_factors", 0), "color": "#d97706"},
+            {"name": "Awaiting Prediction", "value": counts.get("awaiting", 0), "color": "#64748b"},
+        ]
+    except ServerSelectionTimeoutError:
+        return [
+            {"name": "Academic Problem", "value": 0, "color": "#0f766e"},
+            {"name": "External Factor", "value": 0, "color": "#d97706"},
+            {"name": "Awaiting Prediction", "value": 0, "color": "#64748b"},
+        ]
+
+
+@router.get("/analytics/accuracy")
+def get_analytics_accuracy():
+    """Return saved AI model accuracy history from the latest training run metadata."""
+    try:
+        payload = load_model_metrics()
+        if not payload:
+            return []
+
+        history = payload.get("history")
+        normalized_history: list[dict] = []
+
+        def _normalize_accuracy_item(item: dict, fallback_payload: dict, *, fallback_all_models: dict | None = None) -> dict:
+            trained_at = item.get("trained_at")
+            label = "Latest"
+            if isinstance(trained_at, str):
+                try:
+                    parsed = datetime.fromisoformat(trained_at.replace("Z", "+00:00"))
+                    label = parsed.strftime("%b %d, %Y")
+                except ValueError:
+                    label = trained_at
+            all_models = item.get("all_models") if isinstance(item.get("all_models"), dict) else (fallback_all_models or {})
+            return {
+                "month": label,
+                "accuracy": round(float(item.get("holdout_accuracy", 0.0)) * 100, 2),
+                "cvAccuracy": round(float(item.get("cv_mean_accuracy", 0.0)) * 100, 2),
+                "precision": round(float(item.get("precision_weighted", 0.0)) * 100, 2),
+                "recall": round(float(item.get("recall_weighted", 0.0)) * 100, 2),
+                "f1": round(float(item.get("f1_weighted", 0.0)) * 100, 2),
+                "trainedAt": trained_at,
+                "profile": item.get("profile") or fallback_payload.get("selected_profile"),
+                "modelName": item.get("model_name") or item.get("best_model") or fallback_payload.get("selected_model"),
+                "bestModel": item.get("best_model") or fallback_payload.get("selected_model"),
+                "allModels": all_models,
+                "isSnapshot": bool(item.get("is_snapshot")),
+            }
+
+        if isinstance(history, list):
+            for item in history:
+                if not isinstance(item, dict):
+                    continue
+                normalized_history.append(_normalize_accuracy_item(item, payload))
+
+        if normalized_history:
+            return normalized_history
+
+        selected_profile = payload.get("selected_profile")
+        profiles = payload.get("profiles")
+        if not isinstance(profiles, dict) or not selected_profile:
+            return []
+
+        current_profile = profiles.get(selected_profile)
+        if not isinstance(current_profile, dict):
+            return []
+
+        profile_models = current_profile.get("models")
+        if not isinstance(profile_models, dict):
+            profile_models = {}
+
+        best_model = current_profile.get("best_model") or payload.get("selected_model")
+        current_metrics = profile_models.get(best_model) if isinstance(profile_models.get(best_model), dict) else None
+        if not isinstance(current_metrics, dict):
+            current_metrics = next((value for value in profile_models.values() if isinstance(value, dict)), None)
+        if not isinstance(current_metrics, dict):
+            return []
+
+        snapshot_item = {
+            **current_metrics,
+            "trained_at": payload.get("trained_at"),
+            "profile": selected_profile,
+            "model_name": best_model,
+            "best_model": best_model,
+            "all_models": profile_models,
+            "is_snapshot": True,
+        }
+        return [_normalize_accuracy_item(snapshot_item, payload, fallback_all_models=profile_models)]
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return []
+
+
+@router.post("/analytics/train-model")
+def train_model(actor: dict = Depends(require_admin_role)):
+    """Train the AI model with current enrollment data."""
+    try:
+        from app.ai_model import get_student_risk_model, load_model_metrics
+        from datetime import datetime, timezone
+        
+        db = get_db()
+        
+        # Check if there's enough data to train
+        enrollments = list(db.enrollments.find({}))
+        if len(enrollments) < 10:
+            return {
+                "message": "Not enough data to train model. Need at least 10 student records.",
+                "status": "insufficient_data"
+            }
+        
+        # For now, return a success message since actual model training is complex
+        # This is a placeholder for the actual training logic
+        return {
+            "message": "Model training endpoint is a placeholder. Actual ML training requires a dedicated training pipeline.",
+            "status": "not_implemented",
+            "records_available": len(enrollments)
+        }
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Training failed: {str(e)}")
+
+
+# ----- Institution Reports (real data) -----
+
+def _build_reports_list(db) -> list[dict]:
+    """Build list of available reports. Primary entry is the generalized institution report."""
+    from datetime import datetime
+    today = datetime.utcnow().strftime("%b %d, %Y")
+    depts = [d for d in sorted(db.instructor.distinct("department", {"archived": {"$ne": True}})) if d]
+    reports = [
+        {"id": "general", "name": "Institution General Report", "type": "General", "date": today, "department": "All", "description": "Single report with institution-wide summary, at-risk students, and department performance."},
+    ]
+    for d in depts:
+        safe_id = "at-risk-" + d.replace(" ", "-").replace(",", "")
+        reports.append({
+            "id": safe_id,
+            "name": f"{d} — At-Risk List",
+            "type": "At-Risk",
+            "date": today,
+            "department": d,
+            "description": f"Current at-risk students in {d}.",
+        })
+    return reports
+
+
+@router.get("/reports")
+def list_reports():
+    """List available institution reports (built from real data: instructor departments + fixed types)."""
+    try:
+        db = get_db()
+        return _build_reports_list(db)
+    except ServerSelectionTimeoutError:
+        return []
+
+
+@router.get("/reports/general-data")
+def get_general_report_data():
+    """Return general report data for PDF preview and export."""
+    try:
+        db = get_db()
+        from datetime import datetime, timezone
+
+        instructor_ids = _instructor_ids_by_department(db, None)
+        classes = list(db.classes.find({"instructor_id": {"$in": instructor_ids}}))
+        class_ids = [str(c["_id"]) for c in classes]
+        class_by_id = {str(c["_id"]): c for c in classes}
+        instructor_by_id = {doc["_id"]: doc for doc in db.instructor.find({"archived": {"$ne": True}})}
+
+        # Summary stats
+        total_enrollments = db.enrollments.count_documents({"class_id": {"$in": class_ids}})
+        at_risk_count = db.enrollments.count_documents({"class_id": {"$in": class_ids}, "flagged_for_mentoring": True})
+        dept_count = len([d for d in db.instructor.distinct("department", {"archived": {"$ne": True}}) if d])
+        instructor_count = len(instructor_ids)
+
+        # At-risk students data
+        at_risk_rows = []
+        for doc in db.enrollments.find({"class_id": {"$in": class_ids}, "flagged_for_mentoring": True}):
+            c = class_by_id.get(doc["class_id"])
+            if not c:
+                continue
+            inst = instructor_by_id.get(ObjectId(c["instructor_id"])) if ObjectId.is_valid(c.get("instructor_id")) else None
+            dept = (inst.get("department") or "") if inst else ""
+            course = (c.get("subject_code") or "") + " " + (c.get("subject_name") or "")
+            instr_name = (inst.get("name") or "") if inst else ""
+            
+            # Get student email from enrollment or look up from students collection
+            student_email = doc.get("student_email", "")
+            if not student_email and doc.get("student_id"):
+                # Try to find student by student_id
+                student_doc = db.students.find_one({"id_number": doc.get("student_id")})
+                if student_doc:
+                    student_email = student_doc.get("email", "")
+            
+            # Determine prediction label - check multiple fields
+            risk_source = doc.get("risk_source")
+            amu_prediction = doc.get("amu_prediction", {})
+            prediction_label = amu_prediction.get("prediction_label") if isinstance(amu_prediction, dict) else None
+            
+            if prediction_label:
+                outcome = prediction_label
+            elif risk_source == "external_factors":
+                outcome = "External Factor"
+            elif risk_source == "academic":
+                outcome = "Academic Problem"
+            elif risk_source:
+                outcome = "Academic Problem" if risk_source != "external_factors" else "External Factor"
+            else:
+                outcome = "Not predicted"
+            
+            at_risk_rows.append({
+                "student_email": student_email,
+                "prediction_label": outcome,
+                "department": dept,
+                "course": course,
+                "instructor": instr_name,
+            })
+
+        # Department performance data
+        class_to_inst = {str(c["_id"]): c.get("instructor_id") for c in classes}
+        inst_to_dept = {str(i["_id"]): (i.get("department") or "").strip() for i in db.instructor.find({"archived": {"$ne": True}})}
+        enrollments = list(db.enrollments.find({"class_id": {"$in": class_ids}}))
+        dept_total = {}
+        dept_at_risk = {}
+        for e in enrollments:
+            inst_id = class_to_inst.get(e["class_id"])
+            d = inst_to_dept.get(inst_id, "")
+            if not d:
+                continue
+            dept_total[d] = dept_total.get(d, 0) + 1
+            if e.get("flagged_for_mentoring"):
+                dept_at_risk[d] = dept_at_risk.get(d, 0) + 1
+
+        department_performance = []
+        for d in sorted(dept_total.keys()):
+            dept_instructor_ids = [i for i in instructor_ids if inst_to_dept.get(i) == d]
+            department_performance.append({
+                "department": d,
+                "total_students": dept_total.get(d, 0),
+                "at_risk": dept_at_risk.get(d, 0),
+                "instructor_count": len(dept_instructor_ids),
+            })
+
+        return {
+            "summary": {
+                "total_enrollments": total_enrollments,
+                "total_sections": len(classes),
+                "total_instructors": instructor_count,
+                "students_at_risk": at_risk_count,
+                "referred_to_amu": at_risk_count,
+            },
+            "at_risk_rows": at_risk_rows,
+            "department_performance": department_performance,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to load report data: {str(e)}")
+
+
+def _generate_html_report(total_enrollments, at_risk_count, dept_count, instructor_count, at_risk_students):
+    """Generate HTML report for browser PDF preview."""
+    from fastapi.responses import HTMLResponse
+    from datetime import datetime
+    
+    # Build HTML content
+    at_risk_rows_html = ""
+    for student in at_risk_students[:200]:  # Limit to 200 students for PDF
+        at_risk_rows_html += f"""
+        <tr>
+            <td>{student['student_email'] or '-'}</td>
+            <td>{student['prediction_label'] or '-'}</td>
+            <td>{student['course'] or '-'}</td>
+            <td>{student['instructor'] or '-'}</td>
+        </tr>"""
+    
+    if not at_risk_rows_html:
+        at_risk_rows_html = '<tr><td colspan="4" style="text-align:center;color:#64748b;">No at-risk students found.</td></tr>'
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8" />
+        <title>Institution Report</title>
+        <style>
+          @media print {{
+            @page {{
+              margin: 0;
+            }}
+            body {{
+              margin: 1.5cm;
+            }}
+          }}
+          body {{
+            font-family: Arial, sans-serif;
+            color: #0f172a;
+            margin: 24px;
+            line-height: 1.4;
+          }}
+          h1, h2, h3, p {{
+            margin: 0;
+          }}
+          .header {{
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: flex-start;
+            margin-bottom: 20px;
+          }}
+          .meta {{
+            color: #475569;
+            font-size: 12px;
+            margin-top: 6px;
+          }}
+          .cards {{
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 12px;
+            margin: 20px 0;
+          }}
+          .card {{
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 12px;
+            background: #f8fafc;
+          }}
+          .card-label {{
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #64748b;
+            margin-bottom: 6px;
+          }}
+          .card-value {{
+            font-size: 22px;
+            font-weight: 700;
+          }}
+          .section-title {{
+            margin: 24px 0 10px;
+            font-size: 15px;
+            font-weight: 700;
+          }}
+          .footer {{
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            color: #64748b;
+            font-size: 11px;
+          }}
+          table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+            font-size: 12px;
+          }}
+          th, td {{
+            border: 1px solid #e2e8f0;
+            padding: 8px;
+            text-align: left;
+            vertical-align: top;
+          }}
+          th {{
+            background: #f8fafc;
+            font-weight: 700;
+            color: #334155;
+          }}
+        </style>
+      </head>
+      <body>
+        <div class="header" style="display: flex; align-items: center; justify-content: center; gap: 20px; text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 20px; margin-bottom: 30px;">
+          <img src="/buksu-logo.png" alt="BukSU Logo" style="width: 80px; height: 80px; object-fit: contain;" />
+          <div>
+            <div style="font-weight: bold; font-size: 18px; font-family: 'Times New Roman', Times, serif;">BUKIDNON STATE UNIVERSITY</div>
+            <div style="font-size: 14px; font-family: 'Times New Roman', Times, serif;">Malaybalay City, Bukidnon 8700</div>
+            <div style="font-size: 12px; font-family: 'Times New Roman', Times, serif; margin-bottom: 15px;">Tel (088) 813-5661 to 5663; TeleFax (088) 813-2717, www.buksu.edu.ph</div>
+            <h1 style="font-size: 18px; margin-top: 10px; font-family: Arial, sans-serif;">Institution Performance Report</h1>
+            <p class="meta" style="margin: 0; padding: 0;">Academic Monitoring Unit</p>
+            <p class="meta" style="margin: 0; padding: 0;">Institution-wide student performance and enrollment data</p>
+          </div>
+          <div style="width: 80px;"></div>
+        </div>
+
+        <div class="section-title">Executive Summary</div>
+        <div class="cards">
+          <div class="card">
+            <div class="card-label">Total Enrollments</div>
+            <div class="card-value">{total_enrollments}</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Total Sections</div>
+            <div class="card-value">{dept_count}</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Total Instructors</div>
+            <div class="card-value">{instructor_count}</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Students at Risk</div>
+            <div class="card-value">{at_risk_count}</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Referred to AMU</div>
+            <div class="card-value">{at_risk_count}</div>
+          </div>
+        </div>
+
+        <div class="section-title">At-Risk Students</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Student Email</th>
+              <th>Prediction Label</th>
+              <th>Course</th>
+              <th>Instructor</th>
+            </tr>
+          </thead>
+          <tbody>
+            {at_risk_rows_html}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          <p>Generated: {datetime.now().strftime("%B %d, %Y")}</p>
+          <p>Academic Term: 2nd Semester 2025-2026</p>
+        </div>
+      </body>
+    </html>"""
+
+    return HTMLResponse(content=html_content)
+
+
+@router.get("/reports/{report_id}/download")
+def download_report(report_id: str, format: str = "csv"):
+    """Download report as CSV or PDF. Supports general, at-risk-summary, at-risk-{department}, and department-performance."""
+    try:
+        db = get_db()
+        from fastapi.responses import StreamingResponse
+        import io
+        import csv
+        from datetime import datetime
+
+        # general: one CSV with sections (summary, at-risk, department)
+        if report_id == "general":
+            instructor_ids = _instructor_ids_by_department(db, None)
+            classes = list(db.classes.find({"instructor_id": {"$in": instructor_ids}}))
+            class_ids = [str(c["_id"]) for c in classes]
+            class_by_id = {str(c["_id"]): c for c in classes}
+            instructor_by_id = {doc["_id"]: doc for doc in db.instructor.find({"archived": {"$ne": True}})}
+
+            # Summary stats
+            total_enrollments = db.enrollments.count_documents({"class_id": {"$in": class_ids}})
+            at_risk_count = db.enrollments.count_documents({"class_id": {"$in": class_ids}, "flagged_for_mentoring": True})
+            dept_count = len([d for d in db.instructor.distinct("department", {"archived": {"$ne": True}}) if d])
+            instructor_count = len(instructor_ids)
+
+            # Collect at-risk students data
+            at_risk_students = []
+            for doc in db.enrollments.find({"class_id": {"$in": class_ids}, "flagged_for_mentoring": True}):
+                c = class_by_id.get(doc["class_id"])
+                if not c:
+                    continue
+                inst = instructor_by_id.get(ObjectId(c["instructor_id"])) if ObjectId.is_valid(c.get("instructor_id")) else None
+                course = (c.get("subject_code") or "") + " " + (c.get("subject_name") or "")
+                instr_name = (inst.get("name") or "") if inst else ""
+                
+                # Get student email from enrollment or look up from students collection
+                student_email = doc.get("student_email", "")
+                if not student_email and doc.get("student_id"):
+                    student_doc = db.students.find_one({"id_number": doc.get("student_id")})
+                    if student_doc:
+                        student_email = student_doc.get("email", "")
+                
+                # Determine prediction label
+                risk_source = doc.get("risk_source")
+                amu_prediction = doc.get("amu_prediction", {})
+                prediction_label = amu_prediction.get("prediction_label") if isinstance(amu_prediction, dict) else None
+                
+                if prediction_label:
+                    outcome = prediction_label
+                elif risk_source == "external_factors":
+                    outcome = "External Factor"
+                elif risk_source == "academic":
+                    outcome = "Academic Problem"
+                elif risk_source:
+                    outcome = "Academic Problem" if risk_source != "external_factors" else "External Factor"
+                else:
+                    outcome = "Not predicted"
+                
+                at_risk_students.append({
+                    "student_email": student_email,
+                    "prediction_label": outcome,
+                    "course": course,
+                    "instructor": instr_name
+                })
+
+            # Generate HTML for PDF preview if requested
+            if format == "pdf":
+                return _generate_html_report(
+                    total_enrollments, at_risk_count, dept_count, instructor_count,
+                    at_risk_students
+                )
+
+            # Default CSV generation
+            buf = io.StringIO()
+            w = csv.writer(buf)
+            w.writerow(["Institution General Report", datetime.utcnow().strftime("%b %d, %Y")])
+            w.writerow([])
+            w.writerow(["Section", "Metric", "Value"])
+            w.writerow(["Summary", "Total enrollments", total_enrollments])
+            w.writerow(["Summary", "Referred students", at_risk_count])
+            w.writerow(["Summary", "Departments", dept_count])
+            w.writerow([])
+
+            w.writerow(["At-Risk", "student_email", "prediction_label", "course", "instructor"])
+            for student in at_risk_students:
+                w.writerow(["At-Risk", student["student_email"], student["prediction_label"], student["course"], student["instructor"]])
+            w.writerow([])
+
+            return StreamingResponse(
+                io.BytesIO(buf.getvalue().encode("utf-8")),
+                media_type="text/csv",
+                headers={"Content-Disposition": "attachment; filename=institution-general-report.csv"},
+            )
+
+        # at-risk-summary: all at-risk students
+        if report_id == "at-risk-summary":
+            instructor_ids = _instructor_ids_by_department(db, None)
+            classes = list(db.classes.find({"instructor_id": {"$in": instructor_ids}}))
+            class_ids = [str(c["_id"]) for c in classes]
+            class_by_id = {str(c["_id"]): c for c in classes}
+            instructor_by_id = {doc["_id"]: doc for doc in db.instructor.find({"archived": {"$ne": True}})}
+            rows = []
+            for doc in db.enrollments.find({"class_id": {"$in": class_ids}, "flagged_for_mentoring": True}):
+                c = class_by_id.get(doc["class_id"])
+                if not c:
+                    continue
+                inst = instructor_by_id.get(ObjectId(c["instructor_id"])) if ObjectId.is_valid(c.get("instructor_id")) else None
+                
+                # Get student email from enrollment or look up from students collection
+                student_email = doc.get("student_email", "")
+                if not student_email and doc.get("student_id"):
+                    student_doc = db.students.find_one({"id_number": doc.get("student_id")})
+                    if student_doc:
+                        student_email = student_doc.get("email", "")
+                
+                # Determine prediction label
+                risk_source = doc.get("risk_source")
+                amu_prediction = doc.get("amu_prediction", {})
+                prediction_label = amu_prediction.get("prediction_label") if isinstance(amu_prediction, dict) else None
+                
+                if prediction_label:
+                    outcome = prediction_label
+                elif risk_source == "external_factors":
+                    outcome = "External Factor"
+                elif risk_source == "academic":
+                    outcome = "Academic Problem"
+                elif risk_source:
+                    outcome = "Academic Problem" if risk_source != "external_factors" else "External Factor"
+                else:
+                    outcome = "Not predicted"
+                
+                rows.append({
+                    "student_email": student_email,
+                    "prediction_label": outcome,
+                    "course": (c.get("subject_code") or "") + " " + (c.get("subject_name") or ""),
+                    "instructor": (inst.get("name") or "") if inst else "",
+                })
+            buf = io.StringIO()
+            w = csv.DictWriter(buf, fieldnames=["student_email", "prediction_label", "course", "instructor"])
+            w.writeheader()
+            w.writerows(rows)
+            return StreamingResponse(io.BytesIO(buf.getvalue().encode("utf-8")), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=at-risk-summary.csv"})
+
+        # at-risk-{DepartmentName}: at-risk students in that department (id built as at-risk- + dept with spaces -> dashes)
+        if report_id.startswith("at-risk-"):
+            slug = report_id.replace("at-risk-", "")
+            depts = [d for d in db.instructor.distinct("department", {"archived": {"$ne": True}}) if d]
+            matching = next((d for d in depts if d.replace(" ", "-").replace(",", "") == slug), None)
+            if not matching:
+                matching = next((d for d in depts if slug.lower() in d.replace(" ", "-").replace(",", "").lower()), None)
+            department = matching or slug.replace("-", " ")
+            instructor_ids = _instructor_ids_by_department(db, department)
+            classes = list(db.classes.find({"instructor_id": {"$in": instructor_ids}}))
+            class_ids = [str(c["_id"]) for c in classes]
+            class_by_id = {str(c["_id"]): c for c in classes}
+            instructor_by_id = {doc["_id"]: doc for doc in db.instructor.find({"archived": {"$ne": True}})}
+            rows = []
+            for doc in db.enrollments.find({"class_id": {"$in": class_ids}, "flagged_for_mentoring": True}):
+                c = class_by_id.get(doc["class_id"])
+                if not c:
+                    continue
+                inst = instructor_by_id.get(ObjectId(c["instructor_id"])) if ObjectId.is_valid(c.get("instructor_id")) else None
+                
+                # Get student email from enrollment or look up from students collection
+                student_email = doc.get("student_email", "")
+                if not student_email and doc.get("student_id"):
+                    student_doc = db.students.find_one({"id_number": doc.get("student_id")})
+                    if student_doc:
+                        student_email = student_doc.get("email", "")
+                
+                # Determine prediction label
+                risk_source = doc.get("risk_source")
+                amu_prediction = doc.get("amu_prediction", {})
+                prediction_label = amu_prediction.get("prediction_label") if isinstance(amu_prediction, dict) else None
+                
+                if prediction_label:
+                    outcome = prediction_label
+                elif risk_source == "external_factors":
+                    outcome = "External Factor"
+                elif risk_source == "academic":
+                    outcome = "Academic Problem"
+                elif risk_source:
+                    outcome = "Academic Problem" if risk_source != "external_factors" else "External Factor"
+                else:
+                    outcome = "Not predicted"
+                
+                rows.append({
+                    "student_email": student_email,
+                    "prediction_label": outcome,
+                    "course": (c.get("subject_code") or "") + " " + (c.get("subject_name") or ""),
+                    "instructor": (inst.get("name") or "") if inst else "",
+                })
+            buf = io.StringIO()
+            w = csv.DictWriter(buf, fieldnames=["student_email", "prediction_label", "course", "instructor"])
+            w.writeheader()
+            w.writerows(rows)
+            safe_name = report_id.replace(" ", "-") + ".csv"
+            return StreamingResponse(io.BytesIO(buf.getvalue().encode("utf-8")), media_type="text/csv", headers={"Content-Disposition": f"attachment; filename={safe_name}"})
+
+        # department-performance: departments with total and at-risk counts (excludes archived instructors)
+        if report_id == "department-performance":
+            stats = list(db.instructor.find({"archived": {"$ne": True}}, {"_id": 1, "department": 1}))
+            dept_to_ids = {}
+            for s in stats:
+                d = (s.get("department") or "").strip()
+                if d:
+                    dept_to_ids.setdefault(d, []).append(str(s["_id"]))
+            classes = list(db.classes.find({}))
+            class_ids = [str(c["_id"]) for c in classes]
+            class_to_inst = {str(c["_id"]): c.get("instructor_id") for c in classes}
+            inst_to_dept = {str(i["_id"]): (i.get("department") or "").strip() for i in db.instructor.find({"archived": {"$ne": True}})}
+            enrollments = list(db.enrollments.find({"class_id": {"$in": class_ids}}))
+            dept_total = {}
+            dept_at_risk = {}
+            for e in enrollments:
+                inst_id = class_to_inst.get(e["class_id"])
+                d = inst_to_dept.get(inst_id, "")
+                if not d:
+                    continue
+                dept_total[d] = dept_total.get(d, 0) + 1
+                if e.get("flagged_for_mentoring"):
+                    dept_at_risk[d] = dept_at_risk.get(d, 0) + 1
+            rows = [{"department": d, "total_students": dept_total.get(d, 0), "at_risk": dept_at_risk.get(d, 0), "instructor_count": len(dept_to_ids[d])} for d in sorted(dept_to_ids.keys())]
+            buf = io.StringIO()
+            w = csv.DictWriter(buf, fieldnames=["department", "total_students", "at_risk", "instructor_count"])
+            w.writeheader()
+            w.writerows(rows)
+            return StreamingResponse(io.BytesIO(buf.getvalue().encode("utf-8")), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=department-performance.csv"})
+
+        # ai-accuracy: no data
+        raise HTTPException(status_code=404, detail="Report not found or not available for download.")
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+# ----- User accounts (all instructor, admin, amu-staff with role filter) -----
+
+def _user_doc_to_response(doc, role: str) -> dict:
+    out = {k: v for k, v in doc.items() if k != "_id" and k != "password_hash"}
+    out["id"] = str(doc["_id"])
+    out["role"] = role
+    return out
+
+
+def _find_user_any_role(db, user_id: str):
+    """Return (doc, coll_name) if found in any role collection, else (None, None)."""
+    if not ObjectId.is_valid(user_id):
+        return None, None
+    oid = ObjectId(user_id)
+    for coll_name in ROLE_COLLECTIONS:
+        doc = db[coll_name].find_one({"_id": oid})
+        if doc:
+            return doc, coll_name
+    return None, None
+
+
+@router.get("/users")
+def list_all_users(role: str | None = None, search: str | None = None):
+    """List all non-archived accounts (instructor, admin, amu-staff). Filter by role or search by name/email."""
+    try:
+        db = get_db()
+        collections_to_query = (
+            [get_collection_for_role(role)] if role and role != "all" else ROLE_COLLECTIONS
+        )
+        role_to_name = {"instructor": "instructor", "admin": "admin", "amustaff": "amu-staff"}
+        out = []
+        for coll_name in collections_to_query:
+            q = {"archived": {"$ne": True}}
+            if search and search.strip():
+                q["$and"] = [
+                    {"archived": {"$ne": True}},
+                    {"$or": [
+                        {"name": {"$regex": search.strip(), "$options": "i"}},
+                        {"email": {"$regex": search.strip(), "$options": "i"}},
+                    ]},
+                ]
+            for doc in db[coll_name].find(q):
+                role_val = doc.get("role") or role_to_name.get(coll_name, coll_name)
+                out.append(_user_doc_to_response(doc, role_val))
+        return out
+    except (ValueError, ServerSelectionTimeoutError) as e:
+        if isinstance(e, ValueError):
+            raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+@router.get("/users/archived")
+def list_archived_users(role: str | None = None, search: str | None = None):
+    """List archived user accounts. Filter by role or search by name/email."""
+    try:
+        db = get_db()
+        collections_to_query = (
+            [get_collection_for_role(role)] if role and role != "all" else ROLE_COLLECTIONS
+        )
+        role_to_name = {"instructor": "instructor", "admin": "admin", "amustaff": "amu-staff"}
+        out = []
+        for coll_name in collections_to_query:
+            q = {"archived": True}
+            if search and search.strip():
+                q = {
+                    "archived": True,
+                    "$or": [
+                        {"name": {"$regex": search.strip(), "$options": "i"}},
+                        {"email": {"$regex": search.strip(), "$options": "i"}},
+                    ]
+                }
+            for doc in db[coll_name].find(q):
+                role_val = doc.get("role") or role_to_name.get(coll_name, coll_name)
+                out.append(_user_doc_to_response(doc, role_val))
+        return out
+    except (ValueError, ServerSelectionTimeoutError) as e:
+        if isinstance(e, ValueError):
+            raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+@router.post("/users/{user_id}/archive")
+def archive_user(user_id: str, actor: dict = Depends(get_current_actor)):
+    """Archive a user account. Archived users cannot sign in and appear in the archived list."""
+    try:
+        db = get_db()
+        doc, coll_name = _find_user_any_role(db, user_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail="User not found.")
+        if doc.get("archived"):
+            return {"message": "User is already archived."}
+        db[coll_name].update_one({"_id": doc["_id"]}, {"$set": {"archived": True}})
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="archive_user",
+            description=f"Archived user account for {doc.get('name', 'user')}.",
+            target_type="user",
+            target_id=user_id,
+        )
+        return {"message": "User archived."}
+    except HTTPException:
+        raise
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+@router.post("/users/{user_id}/restore")
+def restore_user(user_id: str, actor: dict = Depends(get_current_actor)):
+    """Restore an archived user account."""
+    try:
+        db = get_db()
+        doc, coll_name = _find_user_any_role(db, user_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail="User not found.")
+        db[coll_name].update_one({"_id": doc["_id"]}, {"$unset": {"archived": ""}})
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="restore_user",
+            description=f"Restored user account for {doc.get('name', 'user')}.",
+            target_type="user",
+            target_id=user_id,
+        )
+        return {"message": "User restored."}
+    except HTTPException:
+        raise
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+@router.delete("/users/{user_id}")
+def delete_user(user_id: str, actor: dict = Depends(get_current_actor)):
+    """Permanently delete an archived user account. Only archived users can be deleted."""
+    try:
+        db = get_db()
+        doc, coll_name = _find_user_any_role(db, user_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail="User not found.")
+        if not doc.get("archived"):
+            raise HTTPException(
+                status_code=400,
+                detail="Only archived accounts can be permanently deleted. Archive the user first.",
+            )
+        db[coll_name].delete_one({"_id": doc["_id"]})
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="delete_user",
+            description=f"Permanently deleted user account for {doc.get('name', 'user')}.",
+            target_type="user",
+            target_id=user_id,
+        )
+        return {"message": "User account deleted."}
+    except HTTPException:
+        raise
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+# ----- Pending accounts (instructor / amu-staff signups awaiting admin approval) -----
+
+@router.get("/pending-accounts")
+def list_pending_accounts():
+    """List users with status 'pending' from instructor and amu-staff collections (for admin approval)."""
+    try:
+        db = get_db()
+        out = []
+        for coll_name in ("instructor", "amustaff"):
+            role_label = "instructor" if coll_name == "instructor" else "amu-staff"
+            for doc in db[coll_name].find({"status": "pending"}):
+                out.append({
+                    "id": str(doc["_id"]),
+                    "name": doc.get("name", ""),
+                    "email": doc.get("email", ""),
+                    "role": role_label,
+                    "college": doc.get("college") or doc.get("department") or "",
+                    "contact_number": doc.get("contact_number", ""),
+                    "status": doc.get("status", "pending"),
+                })
+        return out
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+def _find_pending_user(db, user_id: str):
+    """Return (doc, coll_name) for a user in instructor or amustaff with status pending, else (None, None)."""
+    if not ObjectId.is_valid(user_id):
+        return None, None
+    oid = ObjectId(user_id)
+    for coll_name in ("instructor", "amustaff"):
+        doc = db[coll_name].find_one({"_id": oid, "status": "pending"})
+        if doc:
+            return doc, coll_name
+    return None, None
+
+
+@router.post("/pending-accounts/{user_id}/approve")
+def approve_pending_account(user_id: str, actor: dict = Depends(get_current_actor)):
+    """Approve a pending instructor/amu-staff account: set active + email_verified, send confirmation email."""
+    try:
+        db = get_db()
+        doc, coll_name = _find_pending_user(db, user_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail="Pending account not found.")
+        db[coll_name].update_one(
+            {"_id": doc["_id"]},
+            {"$set": {"status": "active", "email_verified": True}},
+        )
+        email = doc.get("email", "")
+        name = doc.get("name", "User")
+        sent, _ = send_account_decision_email(email, name, approved=True)
+        if not sent:
+            import logging
+            logging.getLogger(__name__).warning("Account approved but notification email not sent to %s", email)
+        create_notification(
+            db,
+            role=doc.get("role", "instructor"),
+            recipient_user_id=user_id,
+            title="Account approved",
+            body="Your account request has been approved. You can now sign in to the system.",
+            type="success",
+        )
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="approve_account",
+            description=f"Approved pending account for {name}.",
+            target_type="user",
+            target_id=user_id,
+        )
+        return {"message": "Account approved.", "email_sent": sent}
+    except HTTPException:
+        raise
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+@router.post("/pending-accounts/{user_id}/decline")
+def decline_pending_account(user_id: str, actor: dict = Depends(get_current_actor)):
+    """Decline a pending instructor/amu-staff account: set inactive, send decline email."""
+    try:
+        db = get_db()
+        doc, coll_name = _find_pending_user(db, user_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail="Pending account not found.")
+        db[coll_name].update_one(
+            {"_id": doc["_id"]},
+            {"$set": {"status": "inactive"}},
+        )
+        email = doc.get("email", "")
+        name = doc.get("name", "User")
+        sent, _ = send_account_decision_email(email, name, approved=False)
+        if not sent:
+            import logging
+            logging.getLogger(__name__).warning("Account declined but notification email not sent to %s", email)
+        create_notification(
+            db,
+            role=doc.get("role", "instructor"),
+            recipient_user_id=user_id,
+            title="Account request declined",
+            body="An account request was declined. Please contact the administrator if you need assistance.",
+            type="alert",
+        )
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="decline_account",
+            description=f"Declined pending account for {name}.",
+            target_type="user",
+            target_id=user_id,
+        )
+        return {"message": "Account declined.", "email_sent": sent}
+    except HTTPException:
+        raise
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")

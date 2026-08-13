@@ -1,0 +1,96 @@
+{
+  "trained_at": "2026-04-10T02:09:54.666249+00:00",
+  "selected_profile": "midterm_attendance_needs",
+  "selected_model": "xgboost_tuned",
+  "feature_columns": [
+    "previous_gpa",
+    "failed_subject_count",
+    "attendance_rate",
+    "academic_challenge_score",
+    "external_factor_score",
+    "midterm_grade"
+  ],
+  "feature_columns_by_profile": {
+    "midterm_attendance_needs": [
+      "previous_gpa",
+      "failed_subject_count",
+      "attendance_rate",
+      "academic_challenge_score",
+      "external_factor_score",
+      "midterm_grade"
+    ]
+  },
+  "selected_model_names": {
+    "midterm_attendance_needs": "xgboost_tuned"
+  },
+  "profiles": {
+    "midterm_attendance_needs": {
+      "best_model": "xgboost_tuned",
+      "models": {
+        "xgboost": {
+          "holdout_accuracy": 0.9,
+          "precision_weighted": 0.9013275033156498,
+          "recall_weighted": 0.9,
+          "f1_weighted": 0.9004038432577331,
+          "precision_macro": 0.8998259283819628,
+          "recall_macro": 0.8971809963348831,
+          "f1_macro": 0.8982239490778391,
+          "cv_mean_accuracy": 0.914,
+          "cv_std_accuracy": 0.01743559577416271
+        },
+        "xgboost_tuned": {
+          "holdout_accuracy": 0.915,
+          "precision_weighted": 0.9149607877188108,
+          "recall_weighted": 0.915,
+          "f1_weighted": 0.9147510745171147,
+          "precision_macro": 0.9143350004630916,
+          "recall_macro": 0.9113034858672088,
+          "f1_macro": 0.9125990368183937,
+          "cv_mean_accuracy": 0.9190000000000002,
+          "cv_std_accuracy": 0.014628738838327774
+        }
+      }
+    }
+  },
+  "history": [
+    {
+      "holdout_accuracy": 0.915,
+      "precision_weighted": 0.9149607877188108,
+      "recall_weighted": 0.915,
+      "f1_weighted": 0.9147510745171147,
+      "precision_macro": 0.9143350004630916,
+      "recall_macro": 0.9113034858672088,
+      "f1_macro": 0.9125990368183937,
+      "cv_mean_accuracy": 0.9190000000000002,
+      "cv_std_accuracy": 0.014628738838327774,
+      "trained_at": "2026-04-10T02:09:54.666249+00:00",
+      "profile": "midterm_attendance_needs",
+      "model_name": "xgboost_tuned",
+      "all_models": {
+        "xgboost": {
+          "holdout_accuracy": 0.9,
+          "precision_weighted": 0.9013275033156498,
+          "recall_weighted": 0.9,
+          "f1_weighted": 0.9004038432577331,
+          "precision_macro": 0.8998259283819628,
+          "recall_macro": 0.8971809963348831,
+          "f1_macro": 0.8982239490778391,
+          "cv_mean_accuracy": 0.914,
+          "cv_std_accuracy": 0.01743559577416271
+        },
+        "xgboost_tuned": {
+          "holdout_accuracy": 0.915,
+          "precision_weighted": 0.9149607877188108,
+          "recall_weighted": 0.915,
+          "f1_weighted": 0.9147510745171147,
+          "precision_macro": 0.9143350004630916,
+          "recall_macro": 0.9113034858672088,
+          "f1_macro": 0.9125990368183937,
+          "cv_mean_accuracy": 0.9190000000000002,
+          "cv_std_accuracy": 0.014628738838327774
+        }
+      },
+      "best_model": "xgboost_tuned"
+    }
+  ]
+}

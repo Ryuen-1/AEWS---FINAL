@@ -1,0 +1,114 @@
+import { Suspense, lazy, useEffect } from 'react'
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import ErrorBoundary from './components/ErrorBoundary'
+import { AuthProvider } from './context/AuthContext'
+import { NotificationsProvider } from './context/NotificationsContext'
+import ProtectedRoute from './components/ProtectedRoute'
+
+const Login = lazy(() => import('./pages/Login'))
+const SignUp = lazy(() => import('./pages/SignUp'))
+const CheckEmail = lazy(() => import('./pages/CheckEmail'))
+const PendingApproval = lazy(() => import('./pages/PendingApproval'))
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail'))
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
+const StudentNeedsAssessment = lazy(() => import('./pages/StudentNeedsAssessment'))
+const StudentLogin = lazy(() => import('./pages/StudentLogin'))
+const StudentDashboard = lazy(() => import('./pages/StudentDashboard'))
+const StudentProfile = lazy(() => import('./pages/StudentProfile'))
+const Help = lazy(() => import('./pages/Help'))
+const NotFound = lazy(() => import('./pages/NotFound'))
+const InstructorDashboard = lazy(() => import('./pages/InstructorDashboard'))
+const InstructorReports = lazy(() => import('./pages/InstructorReports'))
+const InstructorSettings = lazy(() => import('./pages/InstructorSettings'))
+const ClassDetails = lazy(() => import('./pages/ClassDetails'))
+const ClassGrades = lazy(() => import('./pages/ClassGrades'))
+const PreviousMidtermGrades = lazy(() => import('./pages/PreviousMidtermGrades'))
+const PreviousFinalGrades = lazy(() => import('./pages/PreviousFinalGrades'))
+const ClassAttendance = lazy(() => import('./pages/ClassAttendance'))
+const InstructorStudentProfile = lazy(() => import('./pages/InstructorStudentProfile'))
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
+const AdminSettings = lazy(() => import('./pages/AdminSettings'))
+const AdminStudentDetail = lazy(() => import('./pages/AdminStudentDetail'))
+const AdminUserDetail = lazy(() => import('./pages/AdminUserDetail'))
+const AdminNeedsAssessmentFormBuilder = lazy(() => import('./pages/AdminNeedsAssessmentFormBuilder'))
+const AmuStaffDashboard = lazy(() => import('./pages/AmuStaffDashboard'))
+const AmuStaffSettings = lazy(() => import('./pages/AmuStaffSettings'))
+const AmuStaffStudentDetail = lazy(() => import('./pages/AmuStaffStudentDetail'))
+const AmuStaffNeedsAssessments = lazy(() => import('./pages/AmuStaffNeedsAssessments'))
+const ArchivedClasses = lazy(() => import('./pages/ArchivedClasses'))
+const ActivityLogs = lazy(() => import('./pages/ActivityLogs'))
+
+function RouteFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-600" role="status" aria-live="polite">
+      <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+        <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+        <span className="text-sm font-medium">Loading page...</span>
+      </div>
+    </div>
+  )
+}
+
+function ScrollToTop() {
+  const location = useLocation()
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [location.pathname])
+
+  return null
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <BrowserRouter>
+        <ScrollToTop />
+        <AuthProvider>
+          <NotificationsProvider>
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/" element={<Login />} />
+                <Route path="/signup" element={<SignUp />} />
+                <Route path="/check-email" element={<CheckEmail />} />
+                <Route path="/pending-approval" element={<PendingApproval />} />
+                <Route path="/verify-email" element={<VerifyEmail />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/needs-assessment/:token" element={<StudentNeedsAssessment />} />
+                <Route path="/student-login" element={<StudentLogin />} />
+                <Route path="/student-dashboard" element={<StudentDashboard />} />
+                <Route path="/student-profile" element={<StudentProfile />} />
+                <Route path="/instructor" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorDashboard /></ProtectedRoute>} />
+                <Route path="/instructor/reports" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorReports /></ProtectedRoute>} />
+                <Route path="/instructor/settings" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorSettings /></ProtectedRoute>} />
+                <Route path="/instructor/activity-logs" element={<ProtectedRoute allowedRoles={['instructor']}><ActivityLogs /></ProtectedRoute>} />
+                <Route path="/instructor/archived" element={<ProtectedRoute allowedRoles={['instructor']}><ArchivedClasses /></ProtectedRoute>} />
+                <Route path="/instructor/class/:id" element={<ProtectedRoute allowedRoles={['instructor']}><ClassDetails /></ProtectedRoute>} />
+                <Route path="/instructor/class/:id/grades" element={<ProtectedRoute allowedRoles={['instructor']}><ClassGrades /></ProtectedRoute>} />
+                <Route path="/instructor/class/:id/grades/previous-midterm" element={<ProtectedRoute allowedRoles={['instructor']}><PreviousMidtermGrades /></ProtectedRoute>} />
+                <Route path="/instructor/class/:id/grades/previous-final" element={<ProtectedRoute allowedRoles={['instructor']}><PreviousFinalGrades /></ProtectedRoute>} />
+                <Route path="/instructor/class/:id/attendance" element={<ProtectedRoute allowedRoles={['instructor']}><ClassAttendance /></ProtectedRoute>} />
+                <Route path="/instructor/student/:id" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorStudentProfile /></ProtectedRoute>} />
+                <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+                <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminSettings /></ProtectedRoute>} />
+                <Route path="/admin/activity-logs" element={<ProtectedRoute allowedRoles={['admin']}><ActivityLogs /></ProtectedRoute>} />
+                <Route path="/admin/student/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminStudentDetail /></ProtectedRoute>} />
+                <Route path="/admin/user/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminUserDetail /></ProtectedRoute>} />
+                <Route path="/admin/needs-assessment-form" element={<ProtectedRoute allowedRoles={['admin']}><AdminNeedsAssessmentFormBuilder /></ProtectedRoute>} />
+                <Route path="/amu-staff" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffDashboard /></ProtectedRoute>} />
+                <Route path="/amu-staff/settings" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffSettings /></ProtectedRoute>} />
+                <Route path="/amu-staff/activity-logs" element={<ProtectedRoute allowedRoles={['amu-staff']}><ActivityLogs /></ProtectedRoute>} />
+                <Route path="/amu-staff/student/:id" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffStudentDetail /></ProtectedRoute>} />
+                <Route path="/amu-staff/needs-assessments" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffNeedsAssessments /></ProtectedRoute>} />
+                <Route path="/help" element={<ProtectedRoute allowedRoles={['instructor', 'admin', 'amu-staff']}><Help /></ProtectedRoute>} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+          </NotificationsProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
+  )
+}
