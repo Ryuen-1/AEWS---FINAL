@@ -3,7 +3,9 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AuthProvider } from './context/AuthContext'
 import { NotificationsProvider } from './context/NotificationsContext'
+import { ToastProvider } from './context/ToastContext'
 import ProtectedRoute from './components/ProtectedRoute'
+import { ToastContainer } from './components/ToastContainer'
 
 const Login = lazy(() => import('./pages/Login'))
 const SignUp = lazy(() => import('./pages/SignUp'))
@@ -67,45 +69,48 @@ export default function App() {
         <ScrollToTop />
         <AuthProvider>
           <NotificationsProvider>
-            <Suspense fallback={<RouteFallback />}>
-              <Routes>
-                <Route path="/" element={<Login />} />
-                <Route path="/signup" element={<SignUp />} />
-                <Route path="/check-email" element={<CheckEmail />} />
-                <Route path="/pending-approval" element={<PendingApproval />} />
-                <Route path="/verify-email" element={<VerifyEmail />} />
-                <Route path="/forgot-password" element={<ForgotPassword />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
-                <Route path="/needs-assessment/:token" element={<StudentNeedsAssessment />} />
-                <Route path="/student-login" element={<StudentLogin />} />
-                <Route path="/student-dashboard" element={<StudentDashboard />} />
-                <Route path="/student-profile" element={<StudentProfile />} />
-                <Route path="/instructor" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorDashboard /></ProtectedRoute>} />
-                <Route path="/instructor/reports" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorReports /></ProtectedRoute>} />
-                <Route path="/instructor/settings" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorSettings /></ProtectedRoute>} />
-                <Route path="/instructor/activity-logs" element={<ProtectedRoute allowedRoles={['instructor']}><ActivityLogs /></ProtectedRoute>} />
-                <Route path="/instructor/archived" element={<ProtectedRoute allowedRoles={['instructor']}><ArchivedClasses /></ProtectedRoute>} />
-                <Route path="/instructor/class/:id" element={<ProtectedRoute allowedRoles={['instructor']}><ClassDetails /></ProtectedRoute>} />
-                <Route path="/instructor/class/:id/grades" element={<ProtectedRoute allowedRoles={['instructor']}><ClassGrades /></ProtectedRoute>} />
-                <Route path="/instructor/class/:id/grades/previous-midterm" element={<ProtectedRoute allowedRoles={['instructor']}><PreviousMidtermGrades /></ProtectedRoute>} />
-                <Route path="/instructor/class/:id/grades/previous-final" element={<ProtectedRoute allowedRoles={['instructor']}><PreviousFinalGrades /></ProtectedRoute>} />
-                <Route path="/instructor/class/:id/attendance" element={<ProtectedRoute allowedRoles={['instructor']}><ClassAttendance /></ProtectedRoute>} />
-                <Route path="/instructor/student/:id" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorStudentProfile /></ProtectedRoute>} />
-                <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
-                <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminSettings /></ProtectedRoute>} />
-                <Route path="/admin/activity-logs" element={<ProtectedRoute allowedRoles={['admin']}><ActivityLogs /></ProtectedRoute>} />
-                <Route path="/admin/student/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminStudentDetail /></ProtectedRoute>} />
-                <Route path="/admin/user/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminUserDetail /></ProtectedRoute>} />
-                <Route path="/admin/needs-assessment-form" element={<ProtectedRoute allowedRoles={['admin']}><AdminNeedsAssessmentFormBuilder /></ProtectedRoute>} />
-                <Route path="/amu-staff" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffDashboard /></ProtectedRoute>} />
-                <Route path="/amu-staff/settings" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffSettings /></ProtectedRoute>} />
-                <Route path="/amu-staff/activity-logs" element={<ProtectedRoute allowedRoles={['amu-staff']}><ActivityLogs /></ProtectedRoute>} />
-                <Route path="/amu-staff/student/:id" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffStudentDetail /></ProtectedRoute>} />
-                <Route path="/amu-staff/needs-assessments" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffNeedsAssessments /></ProtectedRoute>} />
-                <Route path="/help" element={<ProtectedRoute allowedRoles={['instructor', 'admin', 'amu-staff']}><Help /></ProtectedRoute>} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
+            <ToastProvider>
+              <Suspense fallback={<RouteFallback />}>
+                <Routes>
+                  <Route path="/" element={<Login />} />
+                  <Route path="/signup" element={<SignUp />} />
+                  <Route path="/check-email" element={<CheckEmail />} />
+                  <Route path="/pending-approval" element={<PendingApproval />} />
+                  <Route path="/verify-email" element={<VerifyEmail />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/needs-assessment/:token" element={<StudentNeedsAssessment />} />
+                  <Route path="/student-login" element={<StudentLogin />} />
+                  <Route path="/student-dashboard" element={<StudentDashboard />} />
+                  <Route path="/student-profile" element={<StudentProfile />} />
+                  <Route path="/instructor" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorDashboard /></ProtectedRoute>} />
+                  <Route path="/instructor/reports" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorReports /></ProtectedRoute>} />
+                  <Route path="/instructor/settings" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorSettings /></ProtectedRoute>} />
+                  <Route path="/instructor/activity-logs" element={<ProtectedRoute allowedRoles={['instructor']}><ActivityLogs /></ProtectedRoute>} />
+                  <Route path="/instructor/archived" element={<ProtectedRoute allowedRoles={['instructor']}><ArchivedClasses /></ProtectedRoute>} />
+                  <Route path="/instructor/class/:id" element={<ProtectedRoute allowedRoles={['instructor']}><ClassDetails /></ProtectedRoute>} />
+                  <Route path="/instructor/class/:id/grades" element={<ProtectedRoute allowedRoles={['instructor']}><ClassGrades /></ProtectedRoute>} />
+                  <Route path="/instructor/class/:id/grades/previous-midterm" element={<ProtectedRoute allowedRoles={['instructor']}><PreviousMidtermGrades /></ProtectedRoute>} />
+                  <Route path="/instructor/class/:id/grades/previous-final" element={<ProtectedRoute allowedRoles={['instructor']}><PreviousFinalGrades /></ProtectedRoute>} />
+                  <Route path="/instructor/class/:id/attendance" element={<ProtectedRoute allowedRoles={['instructor']}><ClassAttendance /></ProtectedRoute>} />
+                  <Route path="/instructor/student/:id" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorStudentProfile /></ProtectedRoute>} />
+                  <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+                  <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminSettings /></ProtectedRoute>} />
+                  <Route path="/admin/activity-logs" element={<ProtectedRoute allowedRoles={['admin']}><ActivityLogs /></ProtectedRoute>} />
+                  <Route path="/admin/student/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminStudentDetail /></ProtectedRoute>} />
+                  <Route path="/admin/user/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminUserDetail /></ProtectedRoute>} />
+                  <Route path="/admin/needs-assessment-form" element={<ProtectedRoute allowedRoles={['admin']}><AdminNeedsAssessmentFormBuilder /></ProtectedRoute>} />
+                  <Route path="/amu-staff" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffDashboard /></ProtectedRoute>} />
+                  <Route path="/amu-staff/settings" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffSettings /></ProtectedRoute>} />
+                  <Route path="/amu-staff/activity-logs" element={<ProtectedRoute allowedRoles={['amu-staff']}><ActivityLogs /></ProtectedRoute>} />
+                  <Route path="/amu-staff/student/:id" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffStudentDetail /></ProtectedRoute>} />
+                  <Route path="/amu-staff/needs-assessments" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffNeedsAssessments /></ProtectedRoute>} />
+                  <Route path="/help" element={<ProtectedRoute allowedRoles={['instructor', 'admin', 'amu-staff']}><Help /></ProtectedRoute>} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+                <ToastContainer />
+              </Suspense>
+            </ToastProvider>
           </NotificationsProvider>
         </AuthProvider>
       </BrowserRouter>
