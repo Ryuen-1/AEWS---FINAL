@@ -15,7 +15,6 @@ import {
 } from '../lib/tutorialPrefs'
 import { useAuth } from '../context/AuthContext'
 import AmuStaffReferrals from '../components/amu-staff/AmuStaffReferrals'
-import { useNavigate as useRouterNavigate } from 'react-router-dom'
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -28,7 +27,6 @@ const ROLE_PATH = { instructor: '/instructor', admin: '/admin', 'amu-staff': '/a
 
 export default function AmuStaffDashboard() {
   const navigate = useNavigate()
-  const routerNavigate = useRouterNavigate()
   const location = useLocation()
   const { user } = useAuth()
   const getTabFromSearch = (search) => {
@@ -102,7 +100,7 @@ export default function AmuStaffDashboard() {
           label: 'Needs assessments',
           icon: ClipboardList,
           active: location.pathname === '/amu-staff/needs-assessments',
-          onClick: () => routerNavigate('/amu-staff/needs-assessments'),
+          onClick: () => navigate('/amu-staff/needs-assessments'),
         },
         {
           label: 'Reports',
