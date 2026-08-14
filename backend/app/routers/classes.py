@@ -448,8 +448,22 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
         # Check if there are still other instructors referring
         has_existing_reasons = any(existing_reasons.get(key) for key in existing_reasons if key != "mtg_grade_value")
         
-        if referral_history:
-            # Still have other instructors referring, update with removed instructor
+        # Recombine reasons from remaining instructors (excluding this instructor)
+        combined_reasons = {}
+        for ref in referral_history:
+            # Skip this instructor's referral
+            if ref.get("instructor_id") == instructor_id and ref.get("class_id") == str(class_doc["_id"]):
+                continue
+            ref_reasons = ref.get("reasons", {})
+            for key, value in ref_reasons.items():
+                if value:  # Only include if True
+                    combined_reasons[key] = value
+        
+        # Check if there are still any referral reasons after removing this instructor's reasons
+        has_remaining_reasons = any(combined_reasons.get(key) for key in combined_reasons if key != "mtg_grade_value")
+        
+        if referral_history and has_remaining_reasons:
+            # Still have other instructors referring, update with removed instructor and updated reasons
             db.enrollments.update_one(
                 {"_id": enrollment_doc["_id"]},
                 {
@@ -457,6 +471,28 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
                         "referring_instructors": referring_instructors,
                         "referring_classes": referring_classes,
                         "referral_history": referral_history,
+                        "referral_reasons": combined_reasons,
+                    },
+                },
+            )
+            return True
+        elif referral_history and not has_remaining_reasons:
+            # No more valid reasons, remove entire referral
+            db.enrollments.update_one(
+                {"_id": enrollment_doc["_id"]},
+                {
+                    "$set": {"flagged_for_mentoring": False},
+                    "$unset": {
+                        "referral_reasons": "",
+                        "referral_source": "",
+                        "assigned_amu_staff_id": "",
+                        "assigned_amu_staff_name": "",
+                        "assigned_amu_staff_college": "",
+                        "referred_at": "",
+                        "referral_status": "",
+                        "referring_instructors": "",
+                        "referring_classes": "",
+                        "referral_history": "",
                     },
                 },
             )
@@ -546,7 +582,7 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
         "class_code": subject_code,
         "class_name": subject_name,
         "referral_date": datetime.now(timezone.utc),
-        "reasons": merged_reasons,
+        "reasons": reasons,  # Store this instructor's specific reasons
         "source": next_source
     }
     
@@ -567,11 +603,31 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
             "class_name": subject_name
         })
         referral_history.append(new_referral)
+    else:
+        # Update existing referral with new reasons
+        for ref in referral_history:
+            if ref.get("instructor_id") == instructor_id and ref.get("class_id") == str(class_doc["_id"]):
+                ref["reasons"] = reasons
+                ref["referral_date"] = datetime.now(timezone.utc)
+                ref["source"] = next_source
+                break
+    
+    # Merge reasons from all instructors for the main referral_reasons field
+    combined_reasons = {}
+    for ref in referral_history:
+        ref_reasons = ref.get("reasons", {})
+        for key, value in ref_reasons.items():
+            if value:  # Only include if True
+                combined_reasons[key] = value
+    
+    # Add the mtg_grade_value from the most recent calculation
+    if "mtg_grade_value" in merged_reasons:
+        combined_reasons["mtg_grade_value"] = merged_reasons["mtg_grade_value"]
     
     update_data = {
         "flagged_for_mentoring": True,
         "referral_source": next_source,
-        "referral_reasons": merged_reasons,
+        "referral_reasons": combined_reasons,  # Combined reasons from all instructors
         "assigned_amu_staff_id": assigned_staff_id,
         "assigned_amu_staff_name": assigned_staff_name,
         "assigned_amu_staff_college": assigned_staff_college,
