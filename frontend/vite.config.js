@@ -11,4 +11,18 @@ export default defineConfig({
     setupFiles: './src/test/setup.js',
     globals: true,
   },
+  build: {
+    chunkSizeWarningLimit: 1000, // Increase warning limit to 1MB
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split vendor chunks
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'lucide': ['lucide-react'],
+          'charts': ['jsPDF', 'html2canvas'],
+          'utils': ['dompurify'],
+        },
+      },
+    },
+  },
 })

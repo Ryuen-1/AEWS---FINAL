@@ -95,3 +95,73 @@ select:focus-visible {
   background: linear-gradient(to bottom, rgba(100, 116, 139, 1), rgba(71, 85, 105, 1));
 }
 
+/* Screen reader only content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Not screen reader only (for .sr-only focus override) */
+.sr-only-focusable {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/* Skip link styling */
+.sr-only.sr-only-focusable:focus {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 9999;
+  padding: 0.5rem 1rem;
+  background: rgb(37 99 235);
+  color: white;
+  border-radius: 0.5rem;
+  outline: 2px solid white;
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  button, a {
+    border: 2px solid currentColor;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Focus visible for keyboard navigation (only show on keyboard focus, not mouse) */
+:focus-visible {
+  outline: 2px solid rgb(37 99 235);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Remove default outline for mouse users */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
