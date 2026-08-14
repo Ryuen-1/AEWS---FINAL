@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 import bcrypt
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, Form
+from fastapi import APIRouter, Depends, HTTPException, Form, Request
 from pymongo.errors import ServerSelectionTimeoutError
 from email_validator import validate_email, EmailNotValidError
 
@@ -368,7 +368,7 @@ def change_password(body: ChangePasswordRequest, actor: dict = Depends(get_curre
 
 @router.post("/login")
 @limiter.limit("10/minute")  # Limit login attempts to prevent brute force
-def login(request, body: LoginRequest):
+def login(request: Request, body: LoginRequest):
     recaptcha_enabled = _is_recaptcha_enabled()
     token = (body.recaptcha_token or "").strip() if body.recaptcha_token else ""
     if recaptcha_enabled:
