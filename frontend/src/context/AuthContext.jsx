@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useMemo } from 'react'
 import { clearStoredAuth, normalizeAuthPayload, readStoredAuth, writeStoredAuth } from '../lib/authStorage'
+import { logout as apiLogout } from '../api'
 
 const AuthContext = createContext(null)
 
@@ -15,9 +16,9 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     setAuth(null)
-    clearStoredAuth()
+    await apiLogout()  // Call API logout to revoke refresh token
   }, [])
 
   const updateUser = useCallback((updates) => {

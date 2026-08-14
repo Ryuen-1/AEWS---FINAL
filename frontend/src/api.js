@@ -1,10 +1,85 @@
-import { getAuthHeaders, getCurrentAuthRole, normalizeRole, readStoredAuth } from './lib/authStorage'
+import { getAuthHeaders, getCurrentAuthRole, normalizeRole, readStoredAuth, writeStoredAuth, clearStoredAuth } from './lib/authStorage'
 
 // eslint-disable-next-line no-unused-vars
 function getDefaultApiBase() {
   if (typeof window === 'undefined') return 'http://localhost:8000'
   const { protocol, hostname } = window.location
   return `${protocol}//${hostname}:8000`
+}
+
+// Token refresh management
+let refreshPromise = null
+
+async function refreshAccessToken() {
+  if (refreshPromise) return refreshPromise
+
+  const refresh_token = localStorage.getItem('refresh_token')
+  if (!refresh_token) {
+    // No refresh token, force logout
+    clearStoredAuth()
+    localStorage.removeItem('refresh_token')
+    window.location.href = '/login'
+    throw new Error('No refresh token available')
+  }
+
+  refreshPromise = fetch(`${API_BASE}/api/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `refresh_token=${refresh_token}`
+  })
+  .then(res => res.json())
+  .then(data => {
+    // Update stored auth with new access token
+    const currentAuth = readStoredAuth()
+    if (currentAuth) {
+      writeStoredAuth({
+        ...currentAuth,
+        accessToken: data.access_token
+      })
+    }
+    refreshPromise = null
+    return data.access_token
+  })
+  .catch(err => {
+    refreshPromise = null
+    // Refresh failed, force logout
+    clearStoredAuth()
+    localStorage.removeItem('refresh_token')
+    window.location.href = '/login'
+    throw err
+  })
+
+  return refreshPromise
+}
+
+// Authenticated fetch wrapper with auto-refresh
+async function authenticatedFetch(url, options = {}) {
+  let response = await fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      ...getAuthHeaders()
+    }
+  })
+
+  // If 401, try to refresh token and retry
+  if (response.status === 401) {
+    try {
+      const newToken = await refreshAccessToken()
+      response = await fetch(url, {
+        ...options,
+        headers: {
+          ...options.headers,
+          'Authorization': `Bearer ${newToken}`
+        }
+      })
+    } catch (err) {
+      // Refresh failed, let it propagate (will redirect to login)
+      throw err
+    }
+  }
+
+  return response
 }
 
 
@@ -163,6 +238,10 @@ export async function login({ email, password, recaptchaToken }) {
     const msg = formatErrorDetail(data.detail) || res.statusText || 'Login failed'
     throw new Error(msg)
   }
+  // Store refresh token if provided
+  if (data.refresh_token) {
+    localStorage.setItem('refresh_token', data.refresh_token)
+  }
   return data
 }
 
@@ -173,6 +252,25 @@ export async function verifyEmail(token) {
     throw new Error(data.detail || res.statusText || 'Verification failed')
   }
   return data
+}
+
+export async function logout() {
+  const refresh_token = localStorage.getItem('refresh_token')
+  if (refresh_token) {
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/logout`, {
+        method: 'POST',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `refresh_token=${refresh_token}`
+      })
+      // Even if logout fails, clear local storage
+    } catch (err) {
+      console.error('Logout request failed:', err)
+    }
+  }
+  // Always clear local storage
+  clearStoredAuth()
+  localStorage.removeItem('refresh_token')
 }
 
 export async function requestPasswordReset(email) {

@@ -30,6 +30,11 @@ from fastapi.responses import JSONResponse
 from app.activity_log_utils import create_activity_log
 from app.authz import get_current_actor
 from app.database import get_db
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+# Create limiter instance for classes router
+limiter = Limiter(key_func=get_remote_address)
 from app.ai_features import build_model_feature_dict
 from app.ai_model import _extract_topic_difficulty, _format_activity_title, predict_student_risk
 from app.notification_utils import create_notification
@@ -53,6 +58,62 @@ router = APIRouter()
 
 UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+# File upload security limits
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB per file
+MAX_TOTAL_SIZE = 50 * 1024 * 1024  # 50MB per upload session
+STORAGE_QUOTA_PER_USER = 100 * 1024 * 1024  # 100MB per user
+
+ALLOWED_MIME_TYPES = {
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # .xlsx
+    "application/vnd.ms-excel",  # .xls
+    "text/csv",  # .csv
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
+    "application/msword",  # .doc
+}
+
+
+def _validate_file_size(file: UploadFile, filename: str = None) -> None:
+    """Validate file size doesn't exceed limits."""
+    file.file.seek(0, 2)  # Seek to end
+    file_size = file.file.tell()
+    file.file.seek(0)  # Reset to beginning
+
+    if file_size > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File '{filename or file.filename}' exceeds {MAX_FILE_SIZE // (1024*1024)}MB limit"
+        )
+    if file_size == 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File '{filename or file.filename}' is empty"
+        )
+
+
+def _validate_file_type(file: UploadFile) -> None:
+    """Validate file type by content-type."""
+    if file.content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Invalid file type '{file.content_type}'. Allowed: {', '.join(ALLOWED_MIME_TYPES)}"
+        )
+
+
+def _validate_total_size(files: List[UploadFile]) -> None:
+    """Validate total upload size doesn't exceed session limit."""
+    total_size = 0
+    for file in files:
+        file.file.seek(0, 2)
+        file_size = file.file.tell()
+        file.file.seek(0)
+        total_size += file_size
+
+    if total_size > MAX_TOTAL_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Total upload size exceeds {MAX_TOTAL_SIZE // (1024*1024)}MB limit"
+        )
 
 
 def _ensure_instructor_scope(actor: dict, instructor_id: str):
@@ -3141,7 +3202,9 @@ async def preview_classlist(
 
 # --- Upload gradesheet/attendance/classlist for a class ---
 @router.post("/{class_id}/upload", status_code=201)
+@limiter.limit("20/hour")  # Limit file uploads to prevent abuse
 async def upload_class_files(
+    request,
     class_id: str,
     actor: dict = Depends(get_current_actor),
     files: List[UploadFile] = File(..., description="CSV, XLSX, or DOCX files"),
@@ -3150,11 +3213,18 @@ async def upload_class_files(
     """Upload classlist, gradesheet, or attendance for a class. Parses and saves all data to DB."""
     print(f"[UPLOAD START] Upload endpoint called for class {class_id}, type={type}, files={len(files)}")
     logger.info(f"Starting {type} upload for class {class_id} with {len(files)} file(s)")
-    
+
     if not ObjectId.is_valid(class_id):
         raise HTTPException(status_code=404, detail="Class not found")
     if type not in ("gradesheet", "attendance", "classlist"):
         raise HTTPException(status_code=400, detail="Invalid upload type.")
+
+    # Validate file sizes and types
+    _validate_total_size(files)
+    for file in files:
+        _validate_file_size(file)
+        _validate_file_type(file)
+
     saved_files = []
     # classlist tracking
     add_summary = {"added": 0, "skipped": 0, "invalid": 0}
@@ -3739,7 +3809,9 @@ def _detect_file_type(keys):
 
 
 @router.post("/upload-classlist", status_code=201)
+@limiter.limit("20/hour")  # Limit classlist uploads
 async def upload_and_create_classlist(
+    request,
     actor: dict = Depends(get_current_actor),
     files: List[UploadFile] = File(..., description="CSV, XLSX, or DOCX files (Classlist, Gradesheet, or Attendance)"),
     instructor_id: str = Form(...),
@@ -3758,7 +3830,13 @@ async def upload_and_create_classlist(
         _ensure_instructor_scope(actor, instructor_id)
         if not instructor_id:
             raise HTTPException(status_code=400, detail="Instructor ID is required.")
-        
+
+        # Validate file sizes and types
+        _validate_total_size(files)
+        for file in files:
+            _validate_file_size(file)
+            _validate_file_type(file)
+
         # Parse and categorize files
         file_data = {}  # { "classlist": [rows], "gradesheet": [rows], "attendance": [rows] }
         saved_files = []
@@ -5024,7 +5102,8 @@ def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnroll
 
 
 @router.post("/{class_id}/students/{student_email:path}/predict-risk")
-def predict_enrollment_risk(class_id: str, student_email: str, actor: dict = Depends(get_current_actor)):
+@limiter.limit("30/hour")  # Limit individual predictions
+def predict_enrollment_risk(request, class_id: str, student_email: str, actor: dict = Depends(get_current_actor)):
     """Run the XGBoost student-risk model for one enrolled student."""
     try:
         db = get_db()
@@ -5080,7 +5159,9 @@ def predict_enrollment_risk(class_id: str, student_email: str, actor: dict = Dep
 
 
 @router.post("/{class_id}/upload-needs-assessment", status_code=201)
+@limiter.limit("20/hour")  # Limit needs assessment uploads
 async def upload_needs_assessment_file(
+    request,
     class_id: str,
     actor: dict = Depends(get_current_actor),
     files: List[UploadFile] = File(..., description="CSV or XLSX files with needs-assessment columns"),
@@ -5093,6 +5174,12 @@ async def upload_needs_assessment_file(
         db = get_db()
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")
+
+    # Validate file sizes and types
+    _validate_total_size(files)
+    for file in files:
+        _validate_file_size(file)
+        _validate_file_type(file)
 
     class_doc = _get_class_for_actor(db, class_id, actor)
 
@@ -5151,7 +5238,9 @@ async def upload_needs_assessment_file(
 
 
 @router.post("/{class_id}/upload-activity-titles", status_code=201)
+@limiter.limit("20/hour")  # Limit activity title uploads
 async def upload_activity_title_mapping_file(
+    request,
     class_id: str,
     actor: dict = Depends(get_current_actor),
     files: List[UploadFile] = File(..., description="CSV or XLSX files with activity-title mappings"),
@@ -5164,6 +5253,12 @@ async def upload_activity_title_mapping_file(
         db = get_db()
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")
+
+    # Validate file sizes and types
+    _validate_total_size(files)
+    for file in files:
+        _validate_file_size(file)
+        _validate_file_type(file)
 
     class_doc = _get_class_for_actor(db, class_id, actor)
     enrollments = list(db.enrollments.find({"class_id": class_id}))
@@ -5259,7 +5354,8 @@ async def upload_activity_title_mapping_file(
 
 
 @router.post("/{class_id}/predict-risk", status_code=200)
-def predict_class_risk(class_id: str, actor: dict = Depends(get_current_actor)):
+@limiter.limit("10/hour")  # Stricter limit for class-wide predictions (expensive)
+def predict_class_risk(request, class_id: str, actor: dict = Depends(get_current_actor)):
     """Run risk prediction for all students enrolled in a class."""
     try:
         db = get_db()

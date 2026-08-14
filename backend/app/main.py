@@ -4,13 +4,18 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from app.database import get_db
 from app.routers import auth, users, students, notifications, classes, admin, amu_staff, activity_logs
+from app.errors import AppError
+from pymongo.errors import ServerSelectionTimeoutError
 
 # Configure logging
 logging.basicConfig(
@@ -38,12 +43,19 @@ async def lifespan(app: FastAPI):
     yield
 
 
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI(
     title="Academic Early Warning System API",
     description="Backend API for the Academic Early Warning System",
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# Set up rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS: always allow common local frontend origins for development, then extend with env values.
 _origins = {
@@ -100,10 +112,10 @@ async def http_exception_handler(request, exc):
 async def general_exception_handler(request, exc):
     # Extract the origin from the request header
     origin = request.headers.get("origin")
-    
+
     # Build response headers with CORS
     headers = {"Content-Type": "application/json"}
-    
+
     # If origin is localhost, allow it
     if origin and ("localhost" in origin or "127.0.0.1" in origin):
         headers["Access-Control-Allow-Origin"] = origin
@@ -111,13 +123,100 @@ async def general_exception_handler(request, exc):
     elif not origin:
         # If no origin header, allow all (for non-browser clients)
         headers["Access-Control-Allow-Origin"] = "*"
-    
+
     import logging
     logging.getLogger(__name__).exception(f"Unhandled exception: {type(exc).__name__}")
-    
+
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},
+        headers=headers,
+    )
+
+
+# Custom AppError handler for consistent error responses
+@app.exception_handler(AppError)
+async def app_error_handler(request, exc: AppError):
+    """Handle custom application errors with proper CORS headers."""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.error(f"AppError: {exc.message}", extra={"status_code": exc.status_code, "error_type": type(exc).__name__})
+
+    # Extract the origin from the request header
+    origin = request.headers.get("origin")
+
+    # Build response headers with CORS
+    headers = {"Content-Type": "application/json"}
+
+    # If origin is localhost, allow it
+    if origin and ("localhost" in origin or "127.0.0.1" in origin):
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    elif not origin:
+        # If no origin header, allow all (for non-browser clients)
+        headers["Access-Control-Allow-Origin"] = "*"
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.message, "error_type": type(exc).__name__},
+        headers=headers,
+    )
+
+
+# MongoDB connection timeout handler
+@app.exception_handler(ServerSelectionTimeoutError)
+async def mongo_timeout_handler(request, exc: ServerSelectionTimeoutError):
+    """Handle MongoDB connection timeout errors."""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.critical("MongoDB connection timeout", exc_info=True)
+
+    # Extract the origin from the request header
+    origin = request.headers.get("origin")
+
+    # Build response headers with CORS
+    headers = {"Content-Type": "application/json"}
+
+    # If origin is localhost, allow it
+    if origin and ("localhost" in origin or "127.0.0.1" in origin):
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    elif not origin:
+        # If no origin header, allow all (for non-browser clients)
+        headers["Access-Control-Allow-Origin"] = "*"
+
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Database connection failed. Please try again later."},
+        headers=headers,
+    )
+
+
+# ValueError handler for configuration errors (e.g., missing AUTH_TOKEN_SECRET)
+@app.exception_handler(ValueError)
+async def value_error_handler(request, exc: ValueError):
+    """Handle ValueError (often configuration errors)."""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.error(f"Configuration error: {exc}", exc_info=True)
+
+    # Extract the origin from the request header
+    origin = request.headers.get("origin")
+
+    # Build response headers with CORS
+    headers = {"Content-Type": "application/json"}
+
+    # If origin is localhost, allow it
+    if origin and ("localhost" in origin or "127.0.0.1" in origin):
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    elif not origin:
+        # If no origin header, allow all (for non-browser clients)
+        headers["Access-Control-Allow-Origin"] = "*"
+
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)},
         headers=headers,
     )
 

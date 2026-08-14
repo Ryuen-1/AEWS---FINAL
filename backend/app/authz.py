@@ -9,7 +9,7 @@ import time
 from fastapi import Depends, Header, HTTPException
 
 VALID_ROLES = {"instructor", "admin", "amu-staff"}
-TOKEN_TTL_SECONDS = 60 * 60 * 12
+TOKEN_TTL_SECONDS = 60 * 30  # 30 minutes for access tokens (refresh tokens last 7 days)
 
 
 def normalize_role(role: str | None) -> str:
@@ -21,8 +21,12 @@ def normalize_role(role: str | None) -> str:
 
 def _token_secret() -> bytes:
     secret = (os.getenv("AUTH_TOKEN_SECRET") or "").strip()
-    if not secret:
-        secret = "dev-auth-secret-change-me"
+    if not secret or secret == "dev-auth-secret-change-me":
+        raise ValueError(
+            "AUTH_TOKEN_SECRET must be set in environment variables. "
+            "Generate a strong secret: python -c 'import secrets; print(secrets.token_urlsafe(32))' "
+            "and add it to your .env file."
+        )
     return secret.encode("utf-8")
 
 

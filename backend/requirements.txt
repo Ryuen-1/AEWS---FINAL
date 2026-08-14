@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+pymongo
+python-dotenv
+bcrypt
+pydantic
+pydantic-email-validator
+openpyxl
+python-docx
+xgboost
+scikit-learn
+numpy
+pandas
+slowapi
+email-validator

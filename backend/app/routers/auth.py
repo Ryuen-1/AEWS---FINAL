@@ -11,12 +11,28 @@ import bcrypt
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
 from pymongo.errors import ServerSelectionTimeoutError
+from email_validator import validate_email, EmailNotValidError
 
 from app.activity_log_utils import create_activity_log
 from app.authz import create_access_token, get_current_actor
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 log = logging.getLogger(__name__)
 
+# Create limiter instance for auth router
+limiter = Limiter(key_func=get_remote_address)
+
+
+def _validate_email_format(email: str) -> str:
+    """Validate email format and return normalized email."""
+    try:
+        emailinfo = validate_email(email, check_deliverability=False)
+        return emailinfo.normalized
+    except EmailNotValidError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid email address: {str(e)}")
+
 from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS
+from app.authz import normalize_role
 from app.email_sender import is_smtp_configured, send_password_reset_email, send_test_email, send_verification_email
 from app.notification_utils import create_notification
 from app.schemas import ChangePasswordRequest, ForgotPasswordRequest, LoginRequest, ResetPasswordRequest, SignUpRequest
@@ -174,18 +190,22 @@ def _signup_instructor_amu_flow(db, coll, body, existing, doc_base):
 
 
 @router.post("/signup")
-def signup(body: SignUpRequest):
+@limiter.limit("5/minute")  # Limit signup attempts to prevent spam
+def signup(request, body: SignUpRequest):
     try:
+        # Validate email format
+        normalized_email = _validate_email_format(body.email)
+
         db = get_db()
         coll_name = get_collection_for_role(body.role)
         coll = db[coll_name]
         organization_value = (body.college or "").strip()
-        existing = coll.find_one({"email": body.email})
+        existing = coll.find_one({"email": normalized_email})
         if existing and existing.get("email_verified") is True:
             raise HTTPException(status_code=400, detail="Email already registered")
         doc_base = {
             "name": body.name.strip(),
-            "email": body.email,
+            "email": normalized_email,
             "role": body.role,
             "college": organization_value,
             "contact_number": (body.contact_number or "").strip(),
@@ -347,7 +367,8 @@ def change_password(body: ChangePasswordRequest, actor: dict = Depends(get_curre
 
 
 @router.post("/login")
-def login(body: LoginRequest):
+@limiter.limit("10/minute")  # Limit login attempts to prevent brute force
+def login(request, body: LoginRequest):
     recaptcha_enabled = _is_recaptcha_enabled()
     token = (body.recaptcha_token or "").strip() if body.recaptcha_token else ""
     if recaptcha_enabled:
@@ -408,6 +429,23 @@ def login(body: LoginRequest):
         target_type="auth",
         target_id=str(user["_id"]),
     )
+
+    # Generate refresh token
+    refresh_token = secrets.token_urlsafe(32)
+    refresh_token_expires = datetime.now(timezone.utc) + timedelta(days=7)  # 7 days
+
+    # Store refresh token in database
+    db.refresh_tokens.insert_one({
+        "token": refresh_token,
+        "user_id": str(user["_id"]),
+        "collection": coll_name,
+        "created_at": datetime.now(timezone.utc),
+        "expires_at": refresh_token_expires,
+        "revoked": False,
+        "user_agent": None,  # Could be extracted from request headers if needed
+        "ip_address": None,  # Could be extracted from request if needed
+    })
+
     return {
         "user": {
             "id": str(user["_id"]),
@@ -421,5 +459,64 @@ def login(body: LoginRequest):
         },
         "role": user["role"],
         "access_token": create_access_token(user_id=str(user["_id"]), role=user["role"]),
+        "refresh_token": refresh_token,
         "token_type": "bearer",
     }
+
+
+@router.post("/refresh")
+def refresh_token(refresh_token: str = Form(...)):
+    """Refresh access token using a valid refresh token."""
+    try:
+        db = get_db()
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+    # Find refresh token in database
+    token_doc = db.refresh_tokens.find_one({
+        "token": refresh_token,
+        "revoked": False,
+        "expires_at": {"$gt": datetime.now(timezone.utc)}
+    })
+
+    if not token_doc:
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    # Get user
+    user = db[token_doc["collection"]].find_one({"_id": ObjectId(token_doc["user_id"])})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    if user.get("archived"):
+        raise HTTPException(status_code=403, detail="This account has been archived")
+
+    # Create new access token (30 minutes)
+    new_access_token = create_access_token(
+        user_id=str(user["_id"]),
+        role=user["role"],
+        ttl_seconds=60 * 30
+    )
+
+    return {
+        "access_token": new_access_token,
+        "token_type": "bearer",
+        "expires_in": 60 * 30
+    }
+
+
+@router.post("/logout")
+def logout(refresh_token: str = Form(None), actor: dict = Depends(get_current_actor)):
+    """Revoke refresh token to logout."""
+    try:
+        db = get_db()
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+    # If refresh token provided, revoke it
+    if refresh_token:
+        db.refresh_tokens.update_one(
+            {"token": refresh_token, "user_id": actor["id"]},
+            {"$set": {"revoked": True, "revoked_at": datetime.now(timezone.utc)}}
+        )
+
+    return {"message": "Logged out successfully"}

@@ -70,6 +70,7 @@ export function clearStoredAuth() {
   try {
     window.sessionStorage.removeItem(AUTH_KEY)
     window.localStorage.removeItem(AUTH_KEY)
+    window.localStorage.removeItem('refresh_token')  // Clear refresh token too
   } catch (e) {
     console.warn('authStorage: failed to clear auth', e)
   }
