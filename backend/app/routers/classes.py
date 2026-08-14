@@ -604,11 +604,10 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
         })
         referral_history.append(new_referral)
     else:
-        # Update existing referral with new reasons
+        # Update existing referral with new reasons (but don't change the original referral date)
         for ref in referral_history:
             if ref.get("instructor_id") == instructor_id and ref.get("class_id") == str(class_doc["_id"]):
                 ref["reasons"] = reasons
-                ref["referral_date"] = datetime.now(timezone.utc)
                 ref["source"] = next_source
                 break
     
