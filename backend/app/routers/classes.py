@@ -3093,10 +3093,10 @@ def _parse_daily_attendance(row, keys, id_col, name_col):
             absent_days += 1
             marked_columns.append(col_name)
     
-    # Calculate attendance percentage
-    attendance_pct = (present_days / total_attendance_cols * 100) if total_attendance_cols > 0 else 0
+    # Calculate attendance percentage - return None if no attendance data
+    attendance_pct = (present_days / total_attendance_cols * 100) if total_attendance_cols > 0 else None
     
-    return present_days, absent_days, round(attendance_pct, 2), marked_columns
+    return present_days, absent_days, round(attendance_pct, 2) if attendance_pct is not None else None, marked_columns
 
 
 # --- Preview classlist (extract students without saving) ---
@@ -3634,7 +3634,7 @@ async def upload_class_files(
                 if is_daily_format:
                     present_days, absent_days, attendance_pct, marked_cols = _parse_daily_attendance(row, keys, id_col, name_col)
                     logger.debug(f"Daily attendance parsed: present={present_days}, absent={absent_days}, pct={attendance_pct}")
-                    if present_days > 0 or absent_days > 0:
+                    if attendance_pct is not None and (present_days > 0 or absent_days > 0):
                         update_data['attendance_present_days'] = present_days
                         update_data['attendance_absent_days'] = absent_days
                         update_data['attendance_overall'] = attendance_pct
@@ -4191,6 +4191,9 @@ async def upload_and_create_classlist(
 
                 if overall_count > 0:
                     update_data['attendance'] = overall_total / overall_count
+                else:
+                    # No monthly attendance data - don't set attendance field
+                    pass
 
                 if update_data:
                     db.enrollments.update_one(

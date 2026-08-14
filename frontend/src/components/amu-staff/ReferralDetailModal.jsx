@@ -22,7 +22,7 @@ function buildDisplayReasons(referral) {
   }
 
   const attendance = Number(referral?.attendance)
-  if (!Number.isNaN(attendance) && attendance >= 0 && attendance < 75) {
+  if (!Number.isNaN(attendance) && attendance > 0 && attendance < 75) {
     addReason('Attendance is below 75%')
   }
 
