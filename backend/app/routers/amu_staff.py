@@ -286,6 +286,10 @@ def list_referrals(risk: str | None = None, search: str | None = None, actor: di
                     else doc.get("amu_prediction_generated_at")
                 ),
                 "support_routing": _serialize_support_routing(doc),
+                "referring_instructors": doc.get("referring_instructors", []),
+                "referring_classes": doc.get("referring_classes", []),
+                "referral_history": doc.get("referral_history", []),
+                # Backward compatibility - keep single fields for existing records
                 "referring_instructor_id": doc.get("referring_instructor_id"),
                 "referring_class_id": doc.get("referring_class_id"),
                 "referring_class_code": doc.get("referring_class_code"),
@@ -409,6 +413,10 @@ def get_referral(ref_id: str):
                 else doc.get("amu_prediction_generated_at")
             ),
             "support_routing": _serialize_support_routing(doc),
+            "referring_instructors": doc.get("referring_instructors", []),
+            "referring_classes": doc.get("referring_classes", []),
+            "referral_history": doc.get("referral_history", []),
+            # Backward compatibility - keep single fields for existing records
             "referring_instructor_id": doc.get("referring_instructor_id"),
             "referring_class_id": doc.get("referring_class_id"),
             "referring_class_code": doc.get("referring_class_code"),

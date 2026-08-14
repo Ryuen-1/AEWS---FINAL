@@ -237,6 +237,10 @@ def get_public_student_dashboard(student_id: str):
                     "referred_at": _to_iso(enrollment.get("referred_at")),
                     "assigned_amu_staff_name": enrollment.get("assigned_amu_staff_name"),
                     "assigned_amu_staff_college": enrollment.get("assigned_amu_staff_college"),
+                    "referring_instructors": enrollment.get("referring_instructors", []),
+                    "referring_classes": enrollment.get("referring_classes", []),
+                    "referral_history": enrollment.get("referral_history", []),
+                    # Backward compatibility - keep single fields for existing records
                     "referring_instructor_id": enrollment.get("referring_instructor_id"),
                     "referring_class_id": enrollment.get("referring_class_id"),
                     "referring_class_code": enrollment.get("referring_class_code"),

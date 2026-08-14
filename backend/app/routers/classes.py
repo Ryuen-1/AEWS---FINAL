@@ -418,12 +418,51 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
     existing_reasons = _normalized_referral_reasons_map(enrollment_doc.get("referral_reasons"))
     already_referred = enrollment_doc.get("flagged_for_mentoring") is True
 
-    # If no referral reasons, remove referral if already referred
+    # If no referral reasons, remove this instructor's contribution from referral if already referred
     # Exclude mtg_grade_value from the check since it's a numeric value, not a boolean flag
     has_referral_reasons = any(reasons.get(key) for key in reasons if key != "mtg_grade_value")
     if not has_referral_reasons:
+        # Remove this instructor/class from referral arrays
+        referral_history = enrollment_doc.get("referral_history", [])
+        referring_instructors = enrollment_doc.get("referring_instructors", [])
+        referring_classes = enrollment_doc.get("referring_classes", [])
+        
+        # Remove this instructor/class from history
+        referral_history = [
+            ref for ref in referral_history 
+            if not (ref.get("instructor_id") == instructor_id and ref.get("class_id") == str(class_doc["_id"]))
+        ]
+        
+        # Remove this instructor from referring_instructors
+        referring_instructors = [
+            inst for inst in referring_instructors 
+            if inst.get("instructor_id") != instructor_id
+        ]
+        
+        # Remove this class from referring_classes
+        referring_classes = [
+            cls for cls in referring_classes 
+            if cls.get("class_id") != str(class_doc["_id"])
+        ]
+        
+        # Check if there are still other instructors referring
         has_existing_reasons = any(existing_reasons.get(key) for key in existing_reasons if key != "mtg_grade_value")
-        if already_referred and has_existing_reasons:
+        
+        if referral_history:
+            # Still have other instructors referring, update with removed instructor
+            db.enrollments.update_one(
+                {"_id": enrollment_doc["_id"]},
+                {
+                    "$set": {
+                        "referring_instructors": referring_instructors,
+                        "referring_classes": referring_classes,
+                        "referral_history": referral_history,
+                    },
+                },
+            )
+            return True
+        elif already_referred and has_existing_reasons:
+            # No more instructors referring, remove entire referral
             db.enrollments.update_one(
                 {"_id": enrollment_doc["_id"]},
                 {
@@ -436,10 +475,9 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
                         "assigned_amu_staff_college": "",
                         "referred_at": "",
                         "referral_status": "",
-                        "referring_instructor_id": "",
-                        "referring_class_id": "",
-                        "referring_class_code": "",
-                        "referring_class_name": "",
+                        "referring_instructors": "",
+                        "referring_classes": "",
+                        "referral_history": "",
                     },
                 },
             )
@@ -494,11 +532,56 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
     if not enrollment_doc.get("referred_at"):
         update_data["referred_at"] = datetime.now(timezone.utc)
     
-    # Track which instructor/class caused the referral
-    update_data["referring_instructor_id"] = instructor_id
-    update_data["referring_class_id"] = str(class_doc["_id"])
-    update_data["referring_class_code"] = subject_code
-    update_data["referring_class_name"] = subject_name
+    # Track which instructor/class caused the referral - support multiple instructors
+    # Convert to array format if not already
+    referring_instructors = enrollment_doc.get("referring_instructors", [])
+    referring_classes = enrollment_doc.get("referring_classes", [])
+    referral_history = enrollment_doc.get("referral_history", [])
+    
+    # Create new referral record
+    new_referral = {
+        "instructor_id": instructor_id,
+        "instructor_name": _normalize_cell((instructor_doc or {}).get("name")) or "Instructor",
+        "class_id": str(class_doc["_id"]),
+        "class_code": subject_code,
+        "class_name": subject_name,
+        "referral_date": datetime.now(timezone.utc),
+        "reasons": merged_reasons,
+        "source": next_source
+    }
+    
+    # Check if this instructor/class combination already exists
+    instructor_exists = any(
+        ref.get("instructor_id") == instructor_id and ref.get("class_id") == str(class_doc["_id"])
+        for ref in referral_history
+    )
+    
+    if not instructor_exists:
+        referring_instructors.append({
+            "instructor_id": instructor_id,
+            "instructor_name": _normalize_cell((instructor_doc or {}).get("name")) or "Instructor"
+        })
+        referring_classes.append({
+            "class_id": str(class_doc["_id"]),
+            "class_code": subject_code,
+            "class_name": subject_name
+        })
+        referral_history.append(new_referral)
+    
+    update_data = {
+        "flagged_for_mentoring": True,
+        "referral_source": next_source,
+        "referral_reasons": merged_reasons,
+        "assigned_amu_staff_id": assigned_staff_id,
+        "assigned_amu_staff_name": assigned_staff_name,
+        "assigned_amu_staff_college": assigned_staff_college,
+        "referral_status": "Referred",  # Categorize as Referred for instructor view
+        "referring_instructors": referring_instructors,
+        "referring_classes": referring_classes,
+        "referral_history": referral_history,
+    }
+    if not enrollment_doc.get("referred_at"):
+        update_data["referred_at"] = datetime.now(timezone.utc)
 
     db.enrollments.update_one({"_id": enrollment_doc["_id"]}, {"$set": update_data})
 
@@ -4879,13 +4962,8 @@ def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnroll
         student_label = student_email or student_id or identifier
         if not payload:
             return {"message": "No updates.", "student_email": student_email or None, "student_id": student_id or None}
-        # Remove manual referral fields - only automatic referrals based on MTG grades
-        payload.pop("flagged_for_mentoring", None)
-        payload.pop("referral_reasons", None)
-        payload.pop("referral_source", None)
-        payload.pop("assigned_amu_staff_id", None)
-        payload.pop("assigned_amu_staff_name", None)
-        payload.pop("assigned_amu_staff_college", None)
+        # Don't remove referral fields - preserve multiple instructor referrals
+        # Only automatic referrals based on MTG grades are managed by _apply_automatic_referral
         db.enrollments.update_one(
             {"_id": doc["_id"]},
             {"$set": payload, "$unset": _stale_amu_prediction_unset()},
@@ -4893,7 +4971,6 @@ def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnroll
         refreshed_doc = db.enrollments.find_one({"_id": doc["_id"]})
         if refreshed_doc:
             _apply_automatic_referral(db, class_doc, refreshed_doc)
-            # Manual referral functionality removed - only automatic referrals based on MTG grades
         return {"message": "Enrollment updated.", "student_email": student_email or None, "student_id": student_id or None}
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")
