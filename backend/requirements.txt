@@ -13,3 +13,8 @@ numpy
 pandas
 slowapi
 email-validator
+pytest
+pytest-cov
+pytest-asyncio
+rq
+redis
