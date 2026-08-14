@@ -299,8 +299,8 @@ def get_overview(department: str | None = None):
                 "active_alerts": 0,
                 "at_risk_percent": 0,
             }
-        # Classes belonging to (filtered) instructors
-        class_cursor = db.classes.find({"instructor_id": {"$in": instructor_ids}})
+        # Classes belonging to (filtered) instructors - exclude archived classes
+        class_cursor = db.classes.find({"instructor_id": {"$in": instructor_ids}, "status": {"$ne": "archived"}})
         class_ids = [str(c["_id"]) for c in class_cursor]
         total_students = db.enrollments.count_documents({"class_id": {"$in": class_ids}}) if class_ids else 0
         at_risk_students = (
@@ -345,6 +345,9 @@ def list_students_at_risk(department: str | None = None):
         ):
             c = class_by_id.get(doc["class_id"])
             if not c:
+                continue
+            # Skip archived classes - referrals should follow class lifecycle
+            if c.get("status") == "archived":
                 continue
             inst_id = c.get("instructor_id")
             inst = instructor_by_id.get(ObjectId(inst_id)) if ObjectId.is_valid(inst_id) else None
@@ -400,7 +403,7 @@ def list_departments_stats(department: str | None = None):
                 continue
             sid = str(inst["_id"])
             dept_to_instructor_ids.setdefault(d, []).append(sid)
-        classes = list(db.classes.find({"instructor_id": {"$in": instructor_ids}}))
+        classes = list(db.classes.find({"instructor_id": {"$in": instructor_ids}, "status": {"$ne": "archived"}}))
         class_ids = [str(c["_id"]) for c in classes]
         inst_id_to_dept = {str(i["_id"]): (i.get("college") or i.get("department") or "").strip() for i in instructors}
         class_to_inst = {str(c["_id"]): c.get("instructor_id") for c in classes}
@@ -440,7 +443,7 @@ def list_overview_instructors(department: str | None = None):
         db = get_db()
         instructor_ids = _instructor_ids_by_department(db, department)
         instructors = list(db.instructor.find({"_id": {"$in": [ObjectId(i) for i in instructor_ids]}}))
-        classes = list(db.classes.find({"instructor_id": {"$in": instructor_ids}}))
+        classes = list(db.classes.find({"instructor_id": {"$in": instructor_ids}, "status": {"$ne": "archived"}}))
         class_ids = [str(c["_id"]) for c in classes]
         inst_class_count = {}
         for c in classes:
@@ -479,7 +482,7 @@ def get_overview_trends(department: str | None = None):
     try:
         db = get_db()
         instructor_ids = _instructor_ids_by_department(db, department)
-        class_cursor = db.classes.find({"instructor_id": {"$in": instructor_ids}})
+        class_cursor = db.classes.find({"instructor_id": {"$in": instructor_ids}, "status": {"$ne": "archived"}})
         class_ids = [str(c["_id"]) for c in class_cursor]
         total = db.enrollments.count_documents({"class_id": {"$in": class_ids}}) if class_ids else 0
         at_risk = (

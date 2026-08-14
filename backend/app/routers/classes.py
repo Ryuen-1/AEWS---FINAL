@@ -4435,6 +4435,31 @@ def archive_class(class_id: str, actor: dict = Depends(get_current_actor)):
             raise HTTPException(status_code=404, detail="Class not found")
 
         _set_related_enrollment_archive_state(db, class_id, archived=True)
+        
+        # Clear referral flags for archived class - referrals should follow class lifecycle
+        db.enrollments.update_many(
+            {"class_id": class_id},
+            {
+                "$set": {"flagged_for_mentoring": False},
+                "$unset": {
+                    "referral_note": "",
+                    "referral_reasons": "",
+                    "assigned_amu_staff_id": "",
+                    "assigned_amu_staff_name": "",
+                    "assigned_amu_staff_college": "",
+                    "referred_at": "",
+                    "referral_source": "",
+                    "referring_instructors": "",
+                    "referring_classes": "",
+                    "referral_history": "",
+                    "needs_assessment_invitation": "",
+                    "amu_prediction": "",
+                    "amu_prediction_generated_at": "",
+                    "amu_final_verdict": "",
+                },
+            }
+        )
+        
         create_activity_log(
             db,
             actor_id=actor["id"],

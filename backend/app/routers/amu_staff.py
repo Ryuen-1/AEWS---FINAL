@@ -227,6 +227,9 @@ def list_referrals(risk: str | None = None, search: str | None = None, actor: di
             class_doc = db.classes.find_one({"_id": ObjectId(class_id)})
             if not class_doc:
                 continue
+            # Skip archived classes - referrals should follow class lifecycle
+            if class_doc.get("status") == "archived":
+                continue
             instructor_name = "Instructor"
             college = ""
             if class_doc.get("instructor_id"):
