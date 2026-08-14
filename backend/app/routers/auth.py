@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 import bcrypt
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Form
 from pymongo.errors import ServerSelectionTimeoutError
 from email_validator import validate_email, EmailNotValidError
 
