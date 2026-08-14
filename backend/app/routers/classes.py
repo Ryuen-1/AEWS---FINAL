@@ -556,17 +556,9 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
     if not has_actual_referral_reason:
         return False
 
-    update_data = {
-        "flagged_for_mentoring": True,
-        "referral_source": next_source,
-        "referral_reasons": merged_reasons,
-        "assigned_amu_staff_id": assigned_staff_id,
-        "assigned_amu_staff_name": assigned_staff_name,
-        "assigned_amu_staff_college": assigned_staff_college,
-        "referral_status": "Referred",  # Categorize as Referred for instructor view
-    }
-    if not enrollment_doc.get("referred_at"):
-        update_data["referred_at"] = datetime.now(timezone.utc)
+    # Get subject information for referral tracking
+    subject_code = class_doc.get("subject_code") or "Class"
+    subject_name = class_doc.get("subject_name") or ""
     
     # Track which instructor/class caused the referral - support multiple instructors
     # Convert to array format if not already
