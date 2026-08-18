@@ -5,7 +5,15 @@ import tailwindcss from '@tailwindcss/vite'
 // https://vite.dev/config/
 export default defineConfig({
   appType: 'spa',
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react({
+      jsxImportSource: undefined,
+      babel: {
+        plugins: []
+      }
+    }),
+    tailwindcss()
+  ],
   resolve: {
     dedupe: ['react', 'react-dom', 'react-router-dom'],
   },
