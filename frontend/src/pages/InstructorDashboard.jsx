@@ -124,7 +124,7 @@ function CourseCard({ course, onViewDetails, onArchive, archisingId }) {
 
 const ROLE_PATH = { instructor: '/instructor', admin: '/admin', 'amu-staff': '/amu-staff' }
 
-export default function InstructorDashboard() {
+function InstructorDashboardInner() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuth()
@@ -631,6 +631,10 @@ export default function InstructorDashboard() {
       </div>
     </DashboardLayout>
   )
+}
+
+export default function InstructorDashboard() {
+  return <InstructorDashboardInner />
 }
 
 
