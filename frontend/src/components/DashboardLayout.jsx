@@ -207,7 +207,7 @@ export default function DashboardLayout({
       <div className="absolute bottom-1/4 -right-20 w-96 h-96 rounded-full bg-indigo-400/40 blur-3xl" aria-hidden="true" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[32rem] h-[32rem] rounded-full bg-blue-400/25 blur-3xl" aria-hidden="true" />
       <div className="absolute top-3/4 left-1/4 w-64 h-64 rounded-full bg-sky-400/35 blur-3xl" aria-hidden="true" />
-      <header ref={headerRef} className={`relative z-30 sticky top-0 bg-white/90 backdrop-blur-sm border-b ${isInstructor ? 'border-slate-200' : 'border-gray-200'} shadow-sm`}>
+      <header ref={headerRef} className={`relative z-10 sticky top-0 bg-white/90 backdrop-blur-sm border-b ${isInstructor ? 'border-slate-200' : 'border-gray-200'} shadow-sm`}>
         <div className="max-w-[1680px] mx-auto px-4 sm:px-5 py-2.5 flex items-center justify-between gap-2.5">
           {/* Brand / identity */}
           <div className="flex items-center gap-2.5 min-w-0">

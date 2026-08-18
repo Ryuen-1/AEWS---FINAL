@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   BookOpen,
@@ -19,7 +20,6 @@ import {
 import DashboardLayout from '../components/DashboardLayout'
 import DashboardPageHeader from '../components/DashboardPageHeader'
 import TutorialModal from '../components/TutorialModal'
-import HeaderAwareOverlay from '../components/HeaderAwareOverlay'
 import {
   hasSeenTutorial,
   setTutorialSeen,
@@ -448,17 +448,20 @@ export default function InstructorDashboard() {
             </DashboardPageHeader>
 
             {/* Add Class Modal */}
-            {showAddClassModal && (
-              <HeaderAwareOverlay
+            {showAddClassModal && createPortal(
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
                 role="dialog"
-                labelledBy="add-class-title"
-                onBackdropClick={() => !addClassSubmitting && handleCloseModal()}
-                className="flex items-center justify-center bg-slate-900/50"
-                panelClassName="h-auto max-w-md"
-                contentClassName="flex-none overflow-visible rounded-2xl border border-slate-200/80 bg-white shadow-xl shadow-slate-900/10"
+                aria-modal="true"
+                aria-labelledby="add-class-title"
+                onClick={(e) => {
+                  if (e.target === e.currentTarget && !addClassSubmitting) handleCloseModal()
+                }}
               >
-                <div className="w-full p-6" onClick={(e) => e.stopPropagation()}>
+                <div className="w-full max-w-md bg-white rounded-2xl shadow-xl shadow-slate-900/10 p-6" onClick={(e) => e.stopPropagation()}>
                   {uploadStage === 'upload' && (
+                    <>
+                      <h3 id="add-class-title" className="mb-4 text-lg font-bold text-slate-900">Add Class</h3>
                     <>
                       <h3 id="add-class-title" className="mb-4 text-lg font-bold text-slate-900">Add Class</h3>
                       <div className="space-y-4">
@@ -611,18 +614,20 @@ export default function InstructorDashboard() {
                     </div>
                   )}
                 </div>
-              </HeaderAwareOverlay>
+              </div>,
+              document.body
             )}
 
             {/* Upload Loading Overlay */}
-            {addClassSubmitting && (
+            {addClassSubmitting && createPortal(
               <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center">
                 <div className="bg-white rounded-xl shadow-2xl p-8 flex flex-col items-center gap-4">
                   <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
                   <p className="text-lg font-semibold text-slate-900">Creating class...</p>
                   <p className="text-sm text-slate-600">Please wait while we process your class list.</p>
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
           </>
         )}
