@@ -7,39 +7,39 @@ import { ToastProvider } from './context/ToastContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import { ToastContainer } from './components/ToastContainer'
 
-const Login = lazy(() => import('./pages/Login'))
-const SignUp = lazy(() => import('./pages/SignUp'))
-const CheckEmail = lazy(() => import('./pages/CheckEmail'))
-const PendingApproval = lazy(() => import('./pages/PendingApproval'))
-const VerifyEmail = lazy(() => import('./pages/VerifyEmail'))
-const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
-const ResetPassword = lazy(() => import('./pages/ResetPassword'))
-const StudentNeedsAssessment = lazy(() => import('./pages/StudentNeedsAssessment'))
-const StudentLogin = lazy(() => import('./pages/StudentLogin'))
-const StudentDashboard = lazy(() => import('./pages/StudentDashboard'))
-const StudentProfile = lazy(() => import('./pages/StudentProfile'))
-const Help = lazy(() => import('./pages/Help'))
-const NotFound = lazy(() => import('./pages/NotFound'))
+import Login from './pages/Login'
+import SignUp from './pages/SignUp'
+import CheckEmail from './pages/CheckEmail'
+import PendingApproval from './pages/PendingApproval'
+import VerifyEmail from './pages/VerifyEmail'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
+import StudentNeedsAssessment from './pages/StudentNeedsAssessment'
+import StudentLogin from './pages/StudentLogin'
+import StudentDashboard from './pages/StudentDashboard'
+import StudentProfile from './pages/StudentProfile'
+import Help from './pages/Help'
+import NotFound from './pages/NotFound'
 import InstructorDashboard from './pages/InstructorDashboard'
-const InstructorReports = lazy(() => import('./pages/InstructorReports'))
-const InstructorSettings = lazy(() => import('./pages/InstructorSettings'))
-const ClassDetails = lazy(() => import('./pages/ClassDetails'))
-const ClassGrades = lazy(() => import('./pages/ClassGrades'))
-const PreviousMidtermGrades = lazy(() => import('./pages/PreviousMidtermGrades'))
-const PreviousFinalGrades = lazy(() => import('./pages/PreviousFinalGrades'))
-const ClassAttendance = lazy(() => import('./pages/ClassAttendance'))
-const InstructorStudentProfile = lazy(() => import('./pages/InstructorStudentProfile'))
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
-const AdminSettings = lazy(() => import('./pages/AdminSettings'))
-const AdminStudentDetail = lazy(() => import('./pages/AdminStudentDetail'))
-const AdminUserDetail = lazy(() => import('./pages/AdminUserDetail'))
-const AdminNeedsAssessmentFormBuilder = lazy(() => import('./pages/AdminNeedsAssessmentFormBuilder'))
-const AmuStaffDashboard = lazy(() => import('./pages/AmuStaffDashboard'))
-const AmuStaffSettings = lazy(() => import('./pages/AmuStaffSettings'))
-const AmuStaffStudentDetail = lazy(() => import('./pages/AmuStaffStudentDetail'))
-const AmuStaffNeedsAssessments = lazy(() => import('./pages/AmuStaffNeedsAssessments'))
-const ArchivedClasses = lazy(() => import('./pages/ArchivedClasses'))
-const ActivityLogs = lazy(() => import('./pages/ActivityLogs'))
+import InstructorReports from './pages/InstructorReports'
+import InstructorSettings from './pages/InstructorSettings'
+import ClassDetails from './pages/ClassDetails'
+import ClassGrades from './pages/ClassGrades'
+import PreviousMidtermGrades from './pages/PreviousMidtermGrades'
+import PreviousFinalGrades from './pages/PreviousFinalGrades'
+import ClassAttendance from './pages/ClassAttendance'
+import InstructorStudentProfile from './pages/InstructorStudentProfile'
+import AdminDashboard from './pages/AdminDashboard'
+import AdminSettings from './pages/AdminSettings'
+import AdminStudentDetail from './pages/AdminStudentDetail'
+import AdminUserDetail from './pages/AdminUserDetail'
+import AdminNeedsAssessmentFormBuilder from './pages/AdminNeedsAssessmentFormBuilder'
+import AmuStaffDashboard from './pages/AmuStaffDashboard'
+import AmuStaffSettings from './pages/AmuStaffSettings'
+import AmuStaffStudentDetail from './pages/AmuStaffStudentDetail'
+import AmuStaffNeedsAssessments from './pages/AmuStaffNeedsAssessments'
+import ArchivedClasses from './pages/ArchivedClasses'
+import ActivityLogs from './pages/ActivityLogs'
 
 function RouteFallback() {
   return (
@@ -70,8 +70,7 @@ export default function App() {
         <AuthProvider>
           <NotificationsProvider>
             <ToastProvider>
-              <Suspense fallback={<RouteFallback />}>
-                <Routes>
+              <Routes>
                   <Route path="/" element={<Login />} />
                   <Route path="/signup" element={<SignUp />} />
                   <Route path="/check-email" element={<CheckEmail />} />
@@ -109,7 +108,6 @@ export default function App() {
                   <Route path="*" element={<NotFound />} />
                 </Routes>
                 <ToastContainer />
-              </Suspense>
             </ToastProvider>
           </NotificationsProvider>
         </AuthProvider>
