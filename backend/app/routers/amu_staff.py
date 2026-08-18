@@ -1013,18 +1013,26 @@ def _build_weight_explanations(doc: dict, result: dict[str, Any]) -> tuple[list[
     if isinstance(previous_gpa, (int, float)) and previous_gpa >= 2.25:
         academic_items.append(f"Previous GPA is {previous_gpa:.2f}, which adds to the academic concern.")
 
-    # Display CS, Lab, and MO grades for reference (not used in prediction calculation)
+    # Display which grade components show low performance (CS, Lab, MO)
+    weak_components = []
     class_standing = features.get("class_standing")
-    if isinstance(class_standing, (int, float)) and class_standing >= 2.5:
-        academic_items.append(f"Class Standing grade is {class_standing:.2f}.")
-
     lab_grade = features.get("lab_grade")
-    if isinstance(lab_grade, (int, float)) and lab_grade >= 2.5:
-        academic_items.append(f"Laboratory grade is {lab_grade:.2f}.")
-
     major_output_grade = features.get("major_output_grade")
+
+    if isinstance(class_standing, (int, float)) and class_standing >= 2.5:
+        weak_components.append("Class Standing")
+    if isinstance(lab_grade, (int, float)) and lab_grade >= 2.5:
+        weak_components.append("Laboratory")
     if isinstance(major_output_grade, (int, float)) and major_output_grade >= 2.5:
-        academic_items.append(f"Major Output grade is {major_output_grade:.2f}.")
+        weak_components.append("Major Output")
+
+    if weak_components:
+        if len(weak_components) == 1:
+            academic_items.append(f"Low performance in {weak_components[0]}.")
+        elif len(weak_components) == 2:
+            academic_items.append(f"Low performance in {weak_components[0]} and {weak_components[1]}.")
+        else:
+            academic_items.append(f"Low performance in {weak_components[0]}, {weak_components[1]}, and {weak_components[2]}.")
 
     academic_flag_map = [
         (("difficulty_understanding_lectures",), "The needs assessment reports difficulty understanding lectures."),
