@@ -20,7 +20,7 @@ const StudentDashboard = lazy(() => import('./pages/StudentDashboard'))
 const StudentProfile = lazy(() => import('./pages/StudentProfile'))
 const Help = lazy(() => import('./pages/Help'))
 const NotFound = lazy(() => import('./pages/NotFound'))
-const InstructorDashboard = lazy(() => import('./pages/InstructorDashboard'))
+import InstructorDashboard from './pages/InstructorDashboard'
 const InstructorReports = lazy(() => import('./pages/InstructorReports'))
 const InstructorSettings = lazy(() => import('./pages/InstructorSettings'))
 const ClassDetails = lazy(() => import('./pages/ClassDetails'))
