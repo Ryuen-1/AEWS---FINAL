@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Form, Request
 import csv
 import re
 import io
@@ -3204,7 +3204,7 @@ async def preview_classlist(
 @router.post("/{class_id}/upload", status_code=201)
 @limiter.limit("20/hour")  # Limit file uploads to prevent abuse
 async def upload_class_files(
-    request,
+    request: Request,
     class_id: str,
     actor: dict = Depends(get_current_actor),
     files: List[UploadFile] = File(..., description="CSV, XLSX, or DOCX files"),
@@ -3811,7 +3811,7 @@ def _detect_file_type(keys):
 @router.post("/upload-classlist", status_code=201)
 @limiter.limit("20/hour")  # Limit classlist uploads
 async def upload_and_create_classlist(
-    request,
+    request: Request,
     actor: dict = Depends(get_current_actor),
     files: List[UploadFile] = File(..., description="CSV, XLSX, or DOCX files (Classlist, Gradesheet, or Attendance)"),
     instructor_id: str = Form(...),
@@ -5131,7 +5131,7 @@ def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnroll
 
 @router.post("/{class_id}/students/{student_email:path}/predict-risk")
 @limiter.limit("30/hour")  # Limit individual predictions
-def predict_enrollment_risk(request, class_id: str, student_email: str, actor: dict = Depends(get_current_actor)):
+def predict_enrollment_risk(request: Request, class_id: str, student_email: str, actor: dict = Depends(get_current_actor)):
     """Run the XGBoost student-risk model for one enrolled student."""
     try:
         db = get_db()
@@ -5189,7 +5189,7 @@ def predict_enrollment_risk(request, class_id: str, student_email: str, actor: d
 @router.post("/{class_id}/upload-needs-assessment", status_code=201)
 @limiter.limit("20/hour")  # Limit needs assessment uploads
 async def upload_needs_assessment_file(
-    request,
+    request: Request,
     class_id: str,
     actor: dict = Depends(get_current_actor),
     files: List[UploadFile] = File(..., description="CSV or XLSX files with needs-assessment columns"),
@@ -5268,7 +5268,7 @@ async def upload_needs_assessment_file(
 @router.post("/{class_id}/upload-activity-titles", status_code=201)
 @limiter.limit("20/hour")  # Limit activity title uploads
 async def upload_activity_title_mapping_file(
-    request,
+    request: Request,
     class_id: str,
     actor: dict = Depends(get_current_actor),
     files: List[UploadFile] = File(..., description="CSV or XLSX files with activity-title mappings"),
@@ -5383,7 +5383,7 @@ async def upload_activity_title_mapping_file(
 
 @router.post("/{class_id}/predict-risk", status_code=200)
 @limiter.limit("10/hour")  # Stricter limit for class-wide predictions (expensive)
-def predict_class_risk(request, class_id: str, actor: dict = Depends(get_current_actor)):
+def predict_class_risk(request: Request, class_id: str, actor: dict = Depends(get_current_actor)):
     """Run risk prediction for all students enrolled in a class."""
     try:
         db = get_db()

@@ -421,6 +421,44 @@ def _extract_contributing_signals(
             f"Midterm grade is concerning at {numeric_value:.2f}.",
         )
 
+    # Add grade component signals (CS, Lab, MO)
+    class_standing = features.get("class_standing")
+    if class_standing is not None and class_standing > 0:
+        numeric_value = float(class_standing)
+        # For BukSU: 1.0 = best, 5.0 = worst. Threshold for concern: 2.5 and above
+        if numeric_value >= 2.5:
+            add_signal(
+                "class_standing",
+                "Class standing",
+                round(numeric_value, 2),
+                max(0.0, numeric_value - 2.0) if numeric_value <= 5 else max(0.0, (75.0 - numeric_value) / 10.0),
+                f"Class standing is low at {numeric_value:.2f}.",
+            )
+
+    lab_grade = features.get("lab_grade")
+    if lab_grade is not None and lab_grade > 0:
+        numeric_value = float(lab_grade)
+        if numeric_value >= 2.5:
+            add_signal(
+                "lab_grade",
+                "Laboratory grade",
+                round(numeric_value, 2),
+                max(0.0, numeric_value - 2.0) if numeric_value <= 5 else max(0.0, (75.0 - numeric_value) / 10.0),
+                f"Laboratory grade is low at {numeric_value:.2f}.",
+            )
+
+    major_output_grade = features.get("major_output_grade")
+    if major_output_grade is not None and major_output_grade > 0:
+        numeric_value = float(major_output_grade)
+        if numeric_value >= 2.5:
+            add_signal(
+                "major_output_grade",
+                "Major output grade",
+                round(numeric_value, 2),
+                max(0.0, numeric_value - 2.0) if numeric_value <= 5 else max(0.0, (75.0 - numeric_value) / 10.0),
+                f"Major output grade is low at {numeric_value:.2f}.",
+            )
+
     signal_rows.sort(key=lambda item: (-item["importance_score"], item["label"]))
 
     return {
