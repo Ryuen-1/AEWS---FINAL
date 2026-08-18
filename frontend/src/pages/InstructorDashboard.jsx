@@ -462,8 +462,6 @@ export default function InstructorDashboard() {
                   {uploadStage === 'upload' && (
                     <>
                       <h3 id="add-class-title" className="mb-4 text-lg font-bold text-slate-900">Add Class</h3>
-                    <>
-                      <h3 id="add-class-title" className="mb-4 text-lg font-bold text-slate-900">Add Class</h3>
                       <div className="space-y-4">
                         {addClassError && (
                           <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 text-xs text-red-700">{addClassError}</div>
