@@ -16,6 +16,10 @@ export default defineConfig({
   ],
   resolve: {
     dedupe: ['react', 'react-dom', 'react-router-dom'],
+    alias: {
+      react: 'react',
+      'react-dom': 'react-dom',
+    },
   },
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom'],
