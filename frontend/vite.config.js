@@ -4,33 +4,5 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  appType: 'spa',
-  plugins: [
-    react({
-      jsxImportSource: undefined,
-      babel: {
-        plugins: []
-      }
-    }),
-    tailwindcss()
-  ],
-  resolve: {
-    dedupe: ['react', 'react-dom', 'react-router-dom'],
-    alias: {
-      react: 'react',
-      'react-dom': 'react-dom',
-    },
-  },
-  optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router-dom'],
-    force: true,
-  },
-  test: {
-    environment: 'jsdom',
-    setupFiles: './src/test/setup.js',
-    globals: true,
-  },
-  build: {
-    chunkSizeWarningLimit: 1000,
-  },
+  plugins: [react(), tailwindcss()],
 })
