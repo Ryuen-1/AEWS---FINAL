@@ -5,7 +5,8 @@ import './index.css'
 import App from './App.jsx'
 import { queryClient } from './lib/queryClient'
 
-createRoot(document.getElementById('root')).render(
+const root = createRoot(document.getElementById('root'))
+root.render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <App />
