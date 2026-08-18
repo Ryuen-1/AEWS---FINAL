@@ -11,6 +11,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom'],
+    force: true,
   },
   test: {
     environment: 'jsdom',
@@ -18,6 +19,6 @@ export default defineConfig({
     globals: true,
   },
   build: {
-    chunkSizeWarningLimit: 1000, // Increase warning limit to 1MB
+    chunkSizeWarningLimit: 1000,
   },
 })
