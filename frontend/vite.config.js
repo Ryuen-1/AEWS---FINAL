@@ -6,6 +6,9 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   appType: 'spa',
   plugins: [react(), tailwindcss()],
+  resolve: {
+    dedupe: ['react', 'react-dom', 'react-router-dom'],
+  },
   test: {
     environment: 'jsdom',
     setupFiles: './src/test/setup.js',
