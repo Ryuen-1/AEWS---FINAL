@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import glob
 import json
 import pickle
 from datetime import datetime, timezone
@@ -251,14 +252,61 @@ def map_risk_label(final_grade: float) -> int:
     raise ValueError(f"Unsupported final grade for risk mapping: {final_grade}")
 
 
+def load_and_combine_datasets(pattern: str, sheet_name: str = "XGBoost_Ready", needs_assessment: bool = False) -> pd.DataFrame:
+    """Load and combine all Excel files matching a pattern in the data directory."""
+    base_pattern = str(DATA_DIR / pattern)
+    matching_files = glob.glob(base_pattern)
+    
+    if not matching_files:
+        raise FileNotFoundError(f"No files found matching pattern: {base_pattern}")
+    
+    dataframes = []
+    for file_path in matching_files:
+        try:
+            # Needs assessment files have header in first row (row 0), data starts at row 2
+            if needs_assessment:
+                df = _read_table(Path(file_path), sheet_name=0, header=None)
+                if len(df) >= 2:
+                    columns = df.iloc[0].tolist()
+                    data = df.iloc[2:].copy()
+                    data.columns = columns
+                    df = data.reset_index(drop=True)
+                    # Normalize column names
+                    df = _normalize_training_columns(df)
+            else:
+                df = _read_table(Path(file_path), sheet_name=sheet_name)
+            dataframes.append(df)
+            print(f"Loaded: {file_path} ({len(df)} rows)")
+        except Exception as e:
+            print(f"Warning: Failed to load {file_path}: {e}")
+    
+    if not dataframes:
+        raise ValueError(f"No valid datasets found for pattern: {pattern}")
+    
+    combined = pd.concat(dataframes, ignore_index=True)
+    print(f"Combined {len(dataframes)} files: {len(combined)} total rows")
+    return combined
+
+
 def load_training_frame(
     attendance_path: Path,
     grades_path: Path,
     needs_path: Path,
+    combine_all: bool = False,
 ) -> tuple[pd.DataFrame, list[str]]:
-    attendance = _load_attendance_frame(attendance_path)
-    grades = _load_grades_frame(grades_path)
-    needs = _load_needs_frame(needs_path)
+    if combine_all:
+        print("Loading and combining all dataset copies...")
+        attendance = load_and_combine_datasets("Attendance_XGBoost_Dataset_1000*.xlsx")
+        grades = load_and_combine_datasets("Gradesheet_XGBoost_Dataset_1000*.xlsx")
+        needs = load_and_combine_datasets("Needs_Assessment_XGBoost_Dataset_1000*.xlsx", needs_assessment=True)
+        # Update paths for display
+        attendance_path = DATA_DIR / "Attendance_XGBoost_Dataset_1000.xlsx"
+        grades_path = DATA_DIR / "Gradesheet_XGBoost_Dataset_1000.xlsx"
+        needs_path = DATA_DIR / "Needs_Assessment_XGBoost_Dataset_1000.xlsx"
+    else:
+        attendance = _load_attendance_frame(attendance_path)
+        grades = _load_grades_frame(grades_path)
+        needs = _load_needs_frame(needs_path)
 
     attendance["Student_ID"] = attendance["Student_ID"].astype(str)
     grades["Student_ID"] = grades["Student_ID"].astype(str)
@@ -529,12 +577,18 @@ def main() -> None:
         default="xgboost",
         help="Choose which trained model variant to save for runtime use.",
     )
+    parser.add_argument(
+        "--combine-all",
+        action="store_true",
+        help="Combine all dataset copies in the data folder for larger training set.",
+    )
     args = parser.parse_args()
 
     training_df, _ = load_training_frame(
         attendance_path=args.attendance,
         grades_path=args.grades,
         needs_path=args.needs,
+        combine_all=args.combine_all,
     )
 
     evaluations: dict[str, dict[str, Any]] = {}
