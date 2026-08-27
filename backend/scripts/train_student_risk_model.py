@@ -37,7 +37,7 @@ PROFILE_MODEL_JSON_TEMPLATE = "xgboost_student_risk_{profile}.json"
 MAX_HISTORY_ENTRIES = 10
 
 SHEET_NAME = "XGBoost_Ready"
-CLASS_NAMES = ["Low", "Medium", "High"]
+CLASS_NAMES = ["Low Risk", "High Risk"]
 
 FEATURE_PROFILES: dict[str, list[str]] = {
     "midterm_attendance_needs": [
@@ -242,14 +242,14 @@ def _normalize_training_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def map_risk_label(final_grade: float) -> int:
-    grade = float(final_grade)
-    if 1.00 <= grade <= 2.00:
-        return 0
-    if 2.25 <= grade <= 2.75:
-        return 1
-    if 3.00 <= grade <= 5.00:
-        return 2
-    raise ValueError(f"Unsupported final grade for risk mapping: {final_grade}")
+    try:
+        grade = float(final_grade)
+    except (ValueError, TypeError):
+        return 1  # Default to High Risk if invalid
+    
+    if 1.00 <= grade <= 2.25:
+        return 0  # Low Risk
+    return 1  # High Risk (everything else >= 2.50 or invalid)
 
 
 def load_and_combine_datasets(pattern: str, sheet_name: str = "XGBoost_Ready", needs_assessment: bool = False) -> pd.DataFrame:
@@ -348,6 +348,8 @@ def load_training_frame(
         + merged["Mental Health-Related Concerns"]
     )
     merged["attendance_rate"] = merged["Attendance_Rate"] * 100.0
+    # Remove rows with invalid Final_Grade
+    merged = merged.dropna(subset=["Final_Grade"])
     merged["risk_label"] = merged["Final_Grade"].apply(map_risk_label)
     
     # Add grade component features
@@ -402,22 +404,20 @@ def _clean_feature_matrix(
 
 def build_xgboost_model() -> XGBClassifier:
     return XGBClassifier(
-        objective="multi:softprob",
-        num_class=3,
+        objective="binary:logistic",
         n_estimators=300,
         max_depth=5,
         learning_rate=0.05,
         subsample=0.9,
         colsample_bytree=0.9,
-        eval_metric="mlogloss",
+        eval_metric="logloss",
         random_state=42,
     )
 
 
 def build_xgboost_tuned_model() -> XGBClassifier:
     return XGBClassifier(
-        objective="multi:softprob",
-        num_class=3,
+        objective="binary:logistic",
         n_estimators=500,
         max_depth=4,
         learning_rate=0.04,
@@ -426,7 +426,7 @@ def build_xgboost_tuned_model() -> XGBClassifier:
         colsample_bytree=0.85,
         gamma=0.05,
         reg_lambda=1.5,
-        eval_metric="mlogloss",
+        eval_metric="logloss",
         random_state=42,
     )
 
@@ -506,6 +506,9 @@ def evaluate_profile(
 ) -> dict[str, Any]:
     x, usable_columns = _clean_feature_matrix(training_df, feature_columns)
     y = training_df["risk_label"]
+    
+    # Ensure y is properly shaped for binary classification
+    y = y.astype(int)
 
     x_train, x_test, y_train, y_test = train_test_split(
         x,
