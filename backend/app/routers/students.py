@@ -69,7 +69,10 @@ def student_login(body: StudentLoginRequest):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     try:
-        if not bcrypt.checkpw(body.password.encode("utf-8"), password_hash.encode("utf-8")):
+        # Handle both string and bytes password hashes
+        if isinstance(password_hash, str):
+            password_hash = password_hash.encode("utf-8")
+        if not bcrypt.checkpw(body.password.encode("utf-8"), password_hash):
             raise HTTPException(status_code=401, detail="Invalid credentials")
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid credentials")

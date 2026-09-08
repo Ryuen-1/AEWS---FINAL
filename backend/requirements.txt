@@ -13,6 +13,11 @@ numpy
 pandas
 slowapi
 email-validator
+python-multipart
+PyJWT
+requests
+starlette
+httpx
 pytest
 pytest-cov
 pytest-asyncio
