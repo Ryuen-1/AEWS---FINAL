@@ -1,25 +1,45 @@
+# Backend Requirements for Academic Early Warning System
+# Installation command: pip install -r requirements.txt
+
+# Core Framework
 fastapi
 uvicorn
+
+# Database
 pymongo
-python-dotenv
+redis
+
+# Authentication & Security
 bcrypt
-pydantic
-pydantic-email-validator
+PyJWT
+python-dotenv
+
+# Data Processing
 openpyxl
 python-docx
-xgboost
-scikit-learn
 numpy
 pandas
-slowapi
+
+# Machine Learning
+xgboost
+scikit-learn
+
+# API & HTTP
+pydantic
+pydantic-email-validator
 email-validator
 python-multipart
-PyJWT
 requests
 starlette
 httpx
+
+# Rate Limiting
+slowapi
+
+# Testing
 pytest
 pytest-cov
 pytest-asyncio
+
+# Background Jobs
 rq
-redis
