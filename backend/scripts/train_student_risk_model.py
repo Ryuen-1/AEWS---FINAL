@@ -315,7 +315,7 @@ def load_training_frame(
     merged = needs.merge(
         attendance[["Student_ID", "Attendance_Rate"]],
         on="Student_ID",
-        how="inner",
+        how="outer",
     ).merge(
         grades[
             [
@@ -328,11 +328,25 @@ def load_training_frame(
             ]
         ],
         on="Student_ID",
-        how="inner",
+        how="outer",
     )
 
     merged = merged.drop_duplicates(subset=["Student_ID"], keep="last").reset_index(drop=True)
 
+    # Fill missing columns with 0 for outer join
+    academic_cols = ["Difficulty in Understanding Lectures", "Struggles with Specific Subjects", "Weak Study Habits or Time Management", "Low Motivation or Engagement", "Poor Comprehension or Writing Skills"]
+    for col in academic_cols:
+        if col not in merged.columns:
+            merged[col] = 0
+    
+    external_cols = ["Financial Difficulties", "Physical Health-Related Concerns", "Physical Health-related Concerns", "Family Issues", "Part-Time Work Affecting Studies", "Mental Health-Related Concerns"]
+    for col in external_cols:
+        if col not in merged.columns:
+            merged[col] = 0
+    
+    if "Attendance_Rate" not in merged.columns:
+        merged["Attendance_Rate"] = 0
+    
     merged["academic_challenge_score"] = (
         merged["Difficulty in Understanding Lectures"]
         + merged["Struggles with Specific Subjects"]
@@ -348,7 +362,7 @@ def load_training_frame(
         + merged["Mental Health-Related Concerns"]
     )
     merged["attendance_rate"] = merged["Attendance_Rate"] * 100.0
-    # Remove rows with invalid Final_Grade
+    # Remove rows with invalid Final_Grade (students without grades cannot be labeled)
     merged = merged.dropna(subset=["Final_Grade"])
     merged["risk_label"] = merged["Final_Grade"].apply(map_risk_label)
     
