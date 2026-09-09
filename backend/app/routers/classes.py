@@ -3048,8 +3048,8 @@ def _validate_student_data_match(db, class_id: str, rows, keys, upload_type: str
     # Update total students to show only valid rows
     mismatch_details["total_students"] = valid_rows
     
-    # Define threshold (require at least 80% match, i.e., maximum 20% mismatch)
-    MISMATCH_THRESHOLD = 20  # Maximum 20% mismatch allowed
+    # Define threshold (require 100% match, i.e., 0% mismatch allowed)
+    MISMATCH_THRESHOLD = 0  # Maximum 0% mismatch allowed - strict matching
     
     is_valid = mismatch_percentage <= MISMATCH_THRESHOLD
     
