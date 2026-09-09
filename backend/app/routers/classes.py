@@ -2936,6 +2936,7 @@ def _validate_student_data_match(db, class_id: str, rows, keys, upload_type: str
             "matched_students": len(rows),
             "mismatched_students": 0,
             "mismatch_reasons": [],
+            "rows_without_identifiers": 0,
             "note": "No existing enrollments - first upload allowed"
         }
     
@@ -2963,13 +2964,20 @@ def _validate_student_data_match(db, class_id: str, rows, keys, upload_type: str
         "total_students": len(rows),
         "matched_students": 0,
         "mismatched_students": 0,
-        "mismatch_reasons": []
+        "mismatch_reasons": [],
+        "rows_without_identifiers": 0
     }
     
     for row in rows:
         student_email, student_name, student_id = _extract_student_identity(row, keys)
         student_id = _normalize_student_id(student_id)
         student_email = (student_email or "").strip().lower() if student_email else ""
+        
+        # Skip rows without any identifying information (headers, empty rows, etc.)
+        has_identifier = bool(student_id or student_email or student_name)
+        if not has_identifier:
+            mismatch_details["rows_without_identifiers"] += 1
+            continue
         
         # Check each matching criteria
         match_found = False
@@ -3006,9 +3014,13 @@ def _validate_student_data_match(db, class_id: str, rows, keys, upload_type: str
                 "reasons": reasons
             })
     
-    # Calculate match percentage
-    match_percentage = (mismatch_details["matched_students"] / mismatch_details["total_students"] * 100) if mismatch_details["total_students"] > 0 else 0
-    mismatch_percentage = (mismatch_details["mismatched_students"] / mismatch_details["total_students"] * 100) if mismatch_details["total_students"] > 0 else 0
+    # Calculate match percentage (only count rows with identifiers)
+    valid_rows = mismatch_details["total_students"] - mismatch_details["rows_without_identifiers"]
+    match_percentage = (mismatch_details["matched_students"] / valid_rows * 100) if valid_rows > 0 else 0
+    mismatch_percentage = (mismatch_details["mismatched_students"] / valid_rows * 100) if valid_rows > 0 else 0
+    
+    # Update total students to show only valid rows
+    mismatch_details["total_students"] = valid_rows
     
     # Define threshold (require at least 80% match, i.e., maximum 20% mismatch)
     MISMATCH_THRESHOLD = 20  # Maximum 20% mismatch allowed
@@ -3394,6 +3406,7 @@ async def upload_class_files(
                         "total_students": mismatch_details["total_students"],
                         "matched_students": mismatch_details["matched_students"],
                         "mismatched_students": mismatch_details["mismatched_students"],
+                        "rows_without_identifiers": mismatch_details["rows_without_identifiers"],
                         "mismatch_details": mismatch_details["mismatch_reasons"]
                     }
                 )
