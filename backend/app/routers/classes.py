@@ -2931,6 +2931,7 @@ def _validate_student_data_match(db, class_id: str, rows, keys, upload_type: str
     
     if not existing_enrollments:
         # If no existing enrollments, allow upload (it's the first upload)
+        logger.warning(f"No existing enrollments found for class {class_id} - allowing first upload")
         return True, {
             "total_students": len(rows),
             "matched_students": len(rows),
@@ -3391,6 +3392,27 @@ async def upload_class_files(
 
         # Validate student data match for gradesheet and attendance uploads
         if type in ("gradesheet", "attendance"):
+            keys = list(rows[0].keys())
+            is_match_valid, mismatch_details = _validate_student_data_match(db, class_id, rows, keys, type)
+            if not is_match_valid:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": "Student data mismatch detected",
+                        "file": upload.filename,
+                        "upload_type": type,
+                        "match_percentage": mismatch_details["match_percentage"],
+                        "mismatch_percentage": mismatch_details["mismatch_percentage"],
+                        "threshold": mismatch_details["threshold"],
+                        "total_students": mismatch_details["total_students"],
+                        "matched_students": mismatch_details["matched_students"],
+                        "mismatched_students": mismatch_details["mismatched_students"],
+                        "rows_without_identifiers": mismatch_details["rows_without_identifiers"],
+                        "mismatch_details": mismatch_details["mismatch_reasons"]
+                    }
+                )
+        elif type == "classlist":
+            # For classlist uploads to existing classes, also validate against existing enrollments
             keys = list(rows[0].keys())
             is_match_valid, mismatch_details = _validate_student_data_match(db, class_id, rows, keys, type)
             if not is_match_valid:
@@ -4239,6 +4261,28 @@ async def upload_and_create_classlist(
         if "gradesheet" in file_data and file_data["gradesheet"]:
             gradesheet_rows = file_data["gradesheet"]
             gradesheet_keys = file_data["gradesheet_keys"]
+            
+            # Validate student data match for gradesheet upload if class already exists
+            if class_id:
+                is_match_valid, mismatch_details = _validate_student_data_match(db, class_id, gradesheet_rows, gradesheet_keys, "gradesheet")
+                if not is_match_valid:
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "error": "Student data mismatch detected",
+                            "file": "gradesheet upload",
+                            "upload_type": "gradesheet",
+                            "match_percentage": mismatch_details["match_percentage"],
+                            "mismatch_percentage": mismatch_details["mismatch_percentage"],
+                            "threshold": mismatch_details["threshold"],
+                            "total_students": mismatch_details["total_students"],
+                            "matched_students": mismatch_details["matched_students"],
+                            "mismatched_students": mismatch_details["mismatched_students"],
+                            "rows_without_identifiers": mismatch_details["rows_without_identifiers"],
+                            "mismatch_details": mismatch_details["mismatch_reasons"]
+                        }
+                    )
+            
             updated_count_gs = 0
             not_enrolled_gs = []
             gs_email_col = _find_column(gradesheet_keys, ['email'])
