@@ -2970,6 +2970,9 @@ def _validate_student_data_match(db, class_id: str, rows, keys, upload_type: str
         "rows_without_identifiers": 0
     }
     
+    # Track already matched students to avoid duplicates
+    matched_student_ids = set()
+    
     for row in rows:
         student_email, student_name, student_id = _extract_student_identity(row, keys)
         student_id = _normalize_student_id(student_id)
@@ -2981,27 +2984,36 @@ def _validate_student_data_match(db, class_id: str, rows, keys, upload_type: str
             mismatch_details["rows_without_identifiers"] += 1
             continue
         
+        # Skip if this student was already matched
+        if student_id and student_id in matched_student_ids:
+            continue
+        if student_email and student_email in matched_student_ids:
+            continue
+        
         # Check each matching criteria
         match_found = False
         reasons = []
         
-        # 1. Check student ID match
+        # 1. Check student ID match (highest priority)
         if student_id and student_id in existing_by_id:
             match_found = True
+            matched_student_ids.add(student_id)
         elif student_id and len(student_id) >= 4:  # Only report as error if it's a real student ID
             reasons.append(f"Student ID '{student_id}' not found in classlist")
         
-        # 2. Check email match
-        if student_email and student_email in existing_by_email:
+        # 2. Check email match (if ID didn't match)
+        if not match_found and student_email and student_email in existing_by_email:
             match_found = True
-        elif student_email:
+            matched_student_ids.add(student_email)
+        elif not match_found and student_email:
             reasons.append(f"Email '{student_email}' not found in classlist")
         
-        # 3. Check name match
-        if student_name:
+        # 3. Check name match (if ID and email didn't match)
+        if not match_found and student_name:
             canonical_name = _canonicalize_person_name(student_name)
             if canonical_name and canonical_name in existing_by_name:
                 match_found = True
+                matched_student_ids.add(canonical_name)
             elif canonical_name:
                 reasons.append(f"Name '{student_name}' not found in classlist")
         
@@ -3394,8 +3406,11 @@ async def upload_class_files(
         # Validate student data match for gradesheet and attendance uploads
         if type in ("gradesheet", "attendance"):
             keys = list(rows[0].keys())
+            logger.info(f"Starting student data validation for {type} upload to class {class_id}")
             is_match_valid, mismatch_details = _validate_student_data_match(db, class_id, rows, keys, type)
+            logger.info(f"Validation result: valid={is_match_valid}, matched={mismatch_details['matched_students']}, mismatched={mismatch_details['mismatched_students']}")
             if not is_match_valid:
+                logger.warning(f"Student data mismatch detected - rejecting upload")
                 raise HTTPException(
                     status_code=400,
                     detail={
@@ -4253,6 +4268,8 @@ async def upload_and_create_classlist(
                         enrollment_data["student_email"] = student_email
                     if section_code:
                         enrollment_data["section_code"] = section_code
+                    
+                    logger.info(f"Creating new enrollment for class {class_id}: {student_name} ({student_id})")
                     db.enrollments.insert_one(enrollment_data)
                     classlist_summary['added'] += 1
                     classlist_added.append({"source": source_type, "name": student_name, "id": student_id})
