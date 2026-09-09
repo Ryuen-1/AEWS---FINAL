@@ -475,6 +475,7 @@ def _send_referral_emails(db, enrollment_doc: dict, class_doc: dict, assigned_st
 
 
 def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool:
+    instructor_id = class_doc.get("instructor_id")
     reasons = _build_auto_referral_reasons(enrollment_doc)
     existing_reasons = _normalized_referral_reasons_map(enrollment_doc.get("referral_reasons"))
     already_referred = enrollment_doc.get("flagged_for_mentoring") is True
