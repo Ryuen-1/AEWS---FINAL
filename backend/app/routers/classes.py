@@ -2959,6 +2959,9 @@ def _validate_student_data_match(db, class_id: str, rows, keys, upload_type: str
     existing_by_email = {}
     existing_by_name = {}
     
+    # Track potential duplicates in upload file
+    upload_names = {}
+    
     for e in existing_enrollments:
         student_id = _normalize_student_id(e.get("student_id") or e.get("id_number") or "")
         student_email = (e.get("student_email") or "").strip().lower()
@@ -2972,6 +2975,8 @@ def _validate_student_data_match(db, class_id: str, rows, keys, upload_type: str
             canonical_name = _canonicalize_person_name(student_name)
             if canonical_name:
                 existing_by_name[canonical_name] = e
+    
+    # Analyze each student in uploaded file
     
     # Analyze each student in uploaded file
     mismatch_details = {
@@ -2996,27 +3001,66 @@ def _validate_student_data_match(db, class_id: str, rows, keys, upload_type: str
             mismatch_details["rows_without_identifiers"] += 1
             continue
         
+        # Check for duplicate names in upload file
+        if student_name:
+            canonical_name = _canonicalize_person_name(student_name)
+            if canonical_name:
+                upload_names[canonical_name] = upload_names.get(canonical_name, 0) + 1
+                if upload_names[canonical_name] > 1:
+                    mismatch_details["mismatched_students"] += 1
+                    mismatch_details["mismatch_reasons"].append({
+                        "student_id": student_id,
+                        "student_name": student_name,
+                        "student_email": student_email,
+                        "reasons": [f"Duplicate name '{student_name}' in upload file"]
+                    })
+                    continue
+        
         # Skip if this student was already matched
         if student_id and student_id in matched_student_ids:
             continue
         if student_email and student_email in matched_student_ids:
             continue
         
-        # Check each matching criteria
+        # Check each matching criteria with strict validation
         match_found = False
         reasons = []
         
         # 1. Check student ID match (highest priority)
         if student_id and student_id in existing_by_id:
-            match_found = True
-            matched_student_ids.add(student_id)
+            # ID found in classlist - verify name also matches
+            classlist_student = existing_by_id[student_id]
+            classlist_name = classlist_student.get("student_name", "")
+            if student_name:
+                canonical_upload_name = _canonicalize_person_name(student_name)
+                canonical_classlist_name = _canonicalize_person_name(classlist_name)
+                if canonical_upload_name and canonical_classlist_name and canonical_upload_name != canonical_classlist_name:
+                    reasons.append(f"Student ID '{student_id}' found but name mismatch: classlist has '{classlist_name}', upload has '{student_name}'")
+                else:
+                    match_found = True
+                    matched_student_ids.add(student_id)
+            else:
+                match_found = True
+                matched_student_ids.add(student_id)
         elif student_id and len(student_id) >= 4:  # Only report as error if it's a real student ID
             reasons.append(f"Student ID '{student_id}' not found in classlist")
         
         # 2. Check email match (if ID didn't match)
         if not match_found and student_email and student_email in existing_by_email:
-            match_found = True
-            matched_student_ids.add(student_email)
+            # Email found in classlist - verify name also matches
+            classlist_student = existing_by_email[student_email]
+            classlist_name = classlist_student.get("student_name", "")
+            if student_name:
+                canonical_upload_name = _canonicalize_person_name(student_name)
+                canonical_classlist_name = _canonicalize_person_name(classlist_name)
+                if canonical_upload_name and canonical_classlist_name and canonical_upload_name != canonical_classlist_name:
+                    reasons.append(f"Email '{student_email}' found but name mismatch: classlist has '{classlist_name}', upload has '{student_name}'")
+                else:
+                    match_found = True
+                    matched_student_ids.add(student_email)
+            else:
+                match_found = True
+                matched_student_ids.add(student_email)
         elif not match_found and student_email:
             reasons.append(f"Email '{student_email}' not found in classlist")
         
@@ -3024,8 +3068,14 @@ def _validate_student_data_match(db, class_id: str, rows, keys, upload_type: str
         if not match_found and student_name:
             canonical_name = _canonicalize_person_name(student_name)
             if canonical_name and canonical_name in existing_by_name:
-                match_found = True
-                matched_student_ids.add(canonical_name)
+                # Name found in classlist - verify ID also matches if available
+                classlist_student = existing_by_name[canonical_name]
+                classlist_id = _normalize_student_id(classlist_student.get("student_id") or classlist_student.get("id_number") or "")
+                if student_id and classlist_id and student_id != classlist_id:
+                    reasons.append(f"Name '{student_name}' found but ID mismatch: classlist has ID '{classlist_id}', upload has ID '{student_id}'")
+                else:
+                    match_found = True
+                    matched_student_ids.add(canonical_name)
             elif canonical_name:
                 reasons.append(f"Name '{student_name}' not found in classlist")
         
