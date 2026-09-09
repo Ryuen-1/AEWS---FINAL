@@ -44,6 +44,16 @@ export default function ClassAttendance() {
   const [attendanceSuccess, setAttendanceSuccess] = useState('')
   const attendanceInputRef = useRef()
 
+  // Auto-dismiss error messages after 5 seconds
+  useEffect(() => {
+    if (attendanceError) {
+      const timer = setTimeout(() => {
+        setAttendanceError('')
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [attendanceError])
+
   const instructorSubtitle = user ? [user.name, user.college].filter(Boolean).join(' - ') || 'Instructor' : 'Instructor'
 
   const loadData = useCallback(async () => {

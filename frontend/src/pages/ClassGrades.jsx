@@ -163,6 +163,16 @@ export default function ClassGrades() {
   const [activeView, setActiveView] = useState('midterm-grade')
   const gradesheetInputRef = useRef()
 
+  // Auto-dismiss error messages after 5 seconds
+  useEffect(() => {
+    if (gradesheetError) {
+      const timer = setTimeout(() => {
+        setGradesheetError('')
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [gradesheetError])
+
   const instructorSubtitle = user ? [user.name, user.college].filter(Boolean).join(' - ') || 'Instructor' : 'Instructor'
 
   const loadData = useCallback(async () => {
