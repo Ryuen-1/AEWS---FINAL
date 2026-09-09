@@ -2931,15 +2931,27 @@ def _validate_student_data_match(db, class_id: str, rows, keys, upload_type: str
     existing_enrollments = list(db.enrollments.find({"class_id": class_id}))
     
     if not existing_enrollments:
-        # If no existing enrollments, allow upload (it's the first upload)
-        logger.warning(f"No existing enrollments found for class {class_id} - allowing first upload")
+        # If no existing enrollments, only allow classlist uploads (first upload)
+        # Reject gradesheet/attendance uploads if no classlist exists
+        if upload_type != "classlist":
+            logger.error(f"No existing enrollments found for class {class_id} - {upload_type} upload rejected")
+            return False, {
+                "total_students": len(rows),
+                "matched_students": 0,
+                "mismatched_students": len(rows),
+                "mismatch_reasons": [{"reason": "No classlist enrolled for this class. Please upload a classlist first."}],
+                "rows_without_identifiers": 0,
+                "note": "No existing enrollments - upload rejected"
+            }
+        # Allow classlist upload as first upload
+        logger.warning(f"No existing enrollments found for class {class_id} - allowing first classlist upload")
         return True, {
             "total_students": len(rows),
             "matched_students": len(rows),
             "mismatched_students": 0,
             "mismatch_reasons": [],
             "rows_without_identifiers": 0,
-            "note": "No existing enrollments - first upload allowed"
+            "note": "No existing enrollments - first classlist upload allowed"
         }
     
     # Build lookup maps for existing students
@@ -3411,22 +3423,27 @@ async def upload_class_files(
             logger.info(f"Validation result: valid={is_match_valid}, matched={mismatch_details['matched_students']}, mismatched={mismatch_details['mismatched_students']}")
             if not is_match_valid:
                 logger.warning(f"Student data mismatch detected - rejecting upload")
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "error": "Student data mismatch detected",
-                        "file": upload.filename,
-                        "upload_type": type,
-                        "match_percentage": mismatch_details["match_percentage"],
-                        "mismatch_percentage": mismatch_details["mismatch_percentage"],
-                        "threshold": mismatch_details["threshold"],
-                        "total_students": mismatch_details["total_students"],
-                        "matched_students": mismatch_details["matched_students"],
-                        "mismatched_students": mismatch_details["mismatched_students"],
-                        "rows_without_identifiers": mismatch_details["rows_without_identifiers"],
-                        "mismatch_details": mismatch_details["mismatch_reasons"]
-                    }
-                )
+                # Handle different error formats
+                error_detail = {
+                    "error": "Student data mismatch detected",
+                    "file": upload.filename,
+                    "upload_type": type,
+                }
+                # Add detailed mismatch info if available
+                if "match_percentage" in mismatch_details:
+                    error_detail["match_percentage"] = mismatch_details["match_percentage"]
+                    error_detail["mismatch_percentage"] = mismatch_details["mismatch_percentage"]
+                    error_detail["threshold"] = mismatch_details["threshold"]
+                    error_detail["total_students"] = mismatch_details["total_students"]
+                    error_detail["matched_students"] = mismatch_details["matched_students"]
+                    error_detail["mismatched_students"] = mismatch_details["mismatched_students"]
+                    error_detail["rows_without_identifiers"] = mismatch_details["rows_without_identifiers"]
+                    error_detail["mismatch_details"] = mismatch_details["mismatch_reasons"]
+                else:
+                    # Handle no-classlist error format
+                    error_detail["reason"] = mismatch_details.get("mismatch_reasons", [{}])[0].get("reason", "Unknown error")
+                
+                raise HTTPException(status_code=400, detail=error_detail)
         elif type == "classlist":
             # For classlist uploads to existing classes, also validate against existing enrollments
             keys = list(rows[0].keys())
@@ -4282,24 +4299,30 @@ async def upload_and_create_classlist(
             
             # Validate student data match for gradesheet upload if class already exists
             if class_id:
+                logger.info(f"Validating gradesheet against class {class_id}")
                 is_match_valid, mismatch_details = _validate_student_data_match(db, class_id, gradesheet_rows, gradesheet_keys, "gradesheet")
                 if not is_match_valid:
-                    raise HTTPException(
-                        status_code=400,
-                        detail={
-                            "error": "Student data mismatch detected",
-                            "file": "gradesheet upload",
-                            "upload_type": "gradesheet",
-                            "match_percentage": mismatch_details["match_percentage"],
-                            "mismatch_percentage": mismatch_details["mismatch_percentage"],
-                            "threshold": mismatch_details["threshold"],
-                            "total_students": mismatch_details["total_students"],
-                            "matched_students": mismatch_details["matched_students"],
-                            "mismatched_students": mismatch_details["mismatched_students"],
-                            "rows_without_identifiers": mismatch_details["rows_without_identifiers"],
-                            "mismatch_details": mismatch_details["mismatch_reasons"]
-                        }
-                    )
+                    logger.warning(f"Gradesheet validation failed for class {class_id}")
+                    error_detail = {
+                        "error": "Student data mismatch detected",
+                        "file": "gradesheet upload",
+                        "upload_type": "gradesheet",
+                    }
+                    # Add detailed mismatch info if available
+                    if "match_percentage" in mismatch_details:
+                        error_detail["match_percentage"] = mismatch_details["match_percentage"]
+                        error_detail["mismatch_percentage"] = mismatch_details["mismatch_percentage"]
+                        error_detail["threshold"] = mismatch_details["threshold"]
+                        error_detail["total_students"] = mismatch_details["total_students"]
+                        error_detail["matched_students"] = mismatch_details["matched_students"]
+                        error_detail["mismatched_students"] = mismatch_details["mismatched_students"]
+                        error_detail["rows_without_identifiers"] = mismatch_details["rows_without_identifiers"]
+                        error_detail["mismatch_details"] = mismatch_details["mismatch_reasons"]
+                    else:
+                        # Handle no-classlist error format
+                        error_detail["reason"] = mismatch_details.get("mismatch_reasons", [{}])[0].get("reason", "Unknown error")
+                    
+                    raise HTTPException(status_code=400, detail=error_detail)
             
             updated_count_gs = 0
             not_enrolled_gs = []

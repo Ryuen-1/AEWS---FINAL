@@ -219,6 +219,13 @@ export default function ClassGrades() {
       try {
         const errorData = JSON.parse(errorMessage)
         if (errorData.error === 'Student data mismatch detected') {
+          // Handle different error formats
+          if (errorData.reason) {
+            // No classlist error format
+            setGradesheetError(`Upload Rejected: ${errorData.reason}`)
+            return
+          }
+          
           const mismatchDetails = errorData.mismatch_details || []
           const rowsWithoutIdentifiers = errorData.rows_without_identifiers || 0
           
