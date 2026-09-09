@@ -237,6 +237,52 @@ export default function ClassDetails() {
   const [amuStaffOptions, setAmuStaffOptions] = useState([])
   const [amuStaffLoading, setAmuStaffLoading] = useState(false)
 
+  // Auto-dismiss error messages after 5 seconds
+  useEffect(() => {
+    if (classlistError) {
+      const timer = setTimeout(() => {
+        setClasslistError('')
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [classlistError])
+
+  useEffect(() => {
+    if (previewError) {
+      const timer = setTimeout(() => {
+        setPreviewError('')
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [previewError])
+
+  useEffect(() => {
+    if (classError) {
+      const timer = setTimeout(() => {
+        setClassError('')
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [classError])
+
+  useEffect(() => {
+    if (rosterError) {
+      const timer = setTimeout(() => {
+        setRosterError('')
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [rosterError])
+
+  useEffect(() => {
+    if (referralError) {
+      const timer = setTimeout(() => {
+        setReferralError('')
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [referralError])
+
   // Define all fetch callbacks first
   const fetchAmuStaffOptions = useCallback(async () => {
     setAmuStaffLoading(true)

@@ -173,6 +173,16 @@ export default function ClassGrades() {
     }
   }, [gradesheetError])
 
+  // Auto-dismiss general error messages after 5 seconds
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError('')
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [error])
+
   const instructorSubtitle = user ? [user.name, user.college].filter(Boolean).join(' - ') || 'Instructor' : 'Instructor'
 
   const loadData = useCallback(async () => {
