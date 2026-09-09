@@ -98,33 +98,15 @@ export default function ClassAttendance() {
           }
           
           const mismatchDetails = errorData.mismatch_details || []
-          const rowsWithoutIdentifiers = errorData.rows_without_identifiers || 0
           
-          // Show only first 10 mismatched students to avoid overwhelming display
-          const displayLimit = 10
-          const displayMismatches = mismatchDetails.slice(0, displayLimit)
-          const remainingMismatches = Math.max(0, mismatchDetails.length - displayLimit)
+          // Create simple error message with mismatched students
+          const mismatchedStudents = mismatchDetails.map(m => {
+            const name = m.student_name || 'Unknown'
+            const id = m.student_id || 'No ID'
+            return `${name} (${id})`
+          }).join(', ')
           
-          const mismatchReasons = displayMismatches.map(m => 
-            `${m.student_name || 'Unknown'} (${m.student_id || 'No ID'}): ${m.reasons.join(', ')}`
-          ).join('\n')
-          
-          let errorText = `Upload Rejected: Student Data Mismatch\n`
-          errorText += `Total students: ${errorData.total_students}\n`
-          errorText += `Matched: ${errorData.matched_students} (${errorData.match_percentage})\n`
-          errorText += `Mismatched: ${errorData.mismatched_students} (${errorData.mismatch_percentage})\n`
-          errorText += `Threshold: ${errorData.threshold}\n`
-          
-          if (rowsWithoutIdentifiers > 0) {
-            errorText += `Rows without identifiers: ${rowsWithoutIdentifiers} (headers/empty rows)\n`
-          }
-          
-          errorText += `\nMismatch Details (showing first ${displayLimit}):\n${mismatchReasons}`
-          
-          if (remainingMismatches > 0) {
-            errorText += `\n... and ${remainingMismatches} more mismatched students`
-          }
-          
+          const errorText = `Upload Rejected: Student Data Mismatch: ${mismatchedStudents} not found in classlist`
           setAttendanceError(errorText)
         } else {
           setAttendanceError(errorMessage)
