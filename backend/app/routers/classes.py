@@ -2921,6 +2921,110 @@ def _find_matching_enrollment(db, class_id: str, row, keys):
     return enrollment, lookup_identifier, student_email, student_name, student_id
 
 
+def _validate_student_data_match(db, class_id: str, rows, keys, upload_type: str) -> tuple[bool, dict]:
+    """
+    Validate that uploaded file students match existing classlist.
+    Returns (is_valid, mismatch_details) with detailed mismatch analysis.
+    """
+    # Get existing enrollments for the class
+    existing_enrollments = list(db.enrollments.find({"class_id": class_id}))
+    
+    if not existing_enrollments:
+        # If no existing enrollments, allow upload (it's the first upload)
+        return True, {
+            "total_students": len(rows),
+            "matched_students": len(rows),
+            "mismatched_students": 0,
+            "mismatch_reasons": [],
+            "note": "No existing enrollments - first upload allowed"
+        }
+    
+    # Build lookup maps for existing students
+    existing_by_id = {}
+    existing_by_email = {}
+    existing_by_name = {}
+    
+    for e in existing_enrollments:
+        student_id = _normalize_student_id(e.get("student_id") or e.get("id_number") or "")
+        student_email = (e.get("student_email") or "").strip().lower()
+        student_name = e.get("student_name") or ""
+        
+        if student_id:
+            existing_by_id[student_id] = e
+        if student_email:
+            existing_by_email[student_email] = e
+        if student_name:
+            canonical_name = _canonicalize_person_name(student_name)
+            if canonical_name:
+                existing_by_name[canonical_name] = e
+    
+    # Analyze each student in uploaded file
+    mismatch_details = {
+        "total_students": len(rows),
+        "matched_students": 0,
+        "mismatched_students": 0,
+        "mismatch_reasons": []
+    }
+    
+    for row in rows:
+        student_email, student_name, student_id = _extract_student_identity(row, keys)
+        student_id = _normalize_student_id(student_id)
+        student_email = (student_email or "").strip().lower() if student_email else ""
+        
+        # Check each matching criteria
+        match_found = False
+        reasons = []
+        
+        # 1. Check student ID match
+        if student_id and student_id in existing_by_id:
+            match_found = True
+        elif student_id and len(student_id) >= 4:  # Only report as error if it's a real student ID
+            reasons.append(f"Student ID '{student_id}' not found in classlist")
+        
+        # 2. Check email match
+        if student_email and student_email in existing_by_email:
+            match_found = True
+        elif student_email:
+            reasons.append(f"Email '{student_email}' not found in classlist")
+        
+        # 3. Check name match
+        if student_name:
+            canonical_name = _canonicalize_person_name(student_name)
+            if canonical_name and canonical_name in existing_by_name:
+                match_found = True
+            elif canonical_name:
+                reasons.append(f"Name '{student_name}' not found in classlist")
+        
+        if match_found:
+            mismatch_details["matched_students"] += 1
+        else:
+            mismatch_details["mismatched_students"] += 1
+            mismatch_details["mismatch_reasons"].append({
+                "student_id": student_id,
+                "student_name": student_name,
+                "student_email": student_email,
+                "reasons": reasons
+            })
+    
+    # Calculate match percentage
+    match_percentage = (mismatch_details["matched_students"] / mismatch_details["total_students"] * 100) if mismatch_details["total_students"] > 0 else 0
+    mismatch_percentage = (mismatch_details["mismatched_students"] / mismatch_details["total_students"] * 100) if mismatch_details["total_students"] > 0 else 0
+    
+    # Define threshold (require at least 80% match, i.e., maximum 20% mismatch)
+    MISMATCH_THRESHOLD = 20  # Maximum 20% mismatch allowed
+    
+    is_valid = mismatch_percentage <= MISMATCH_THRESHOLD
+    
+    # Add percentage details to response
+    mismatch_details["match_percentage"] = f"{match_percentage:.1f}%"
+    mismatch_details["mismatch_percentage"] = f"{mismatch_percentage:.1f}%"
+    mismatch_details["threshold"] = f"Maximum {MISMATCH_THRESHOLD}% mismatch allowed"
+    
+    logger.info(f"Student data validation: {mismatch_details['matched_students']}/{mismatch_details['total_students']} matched ({match_percentage:.1f}%)")
+    
+    return is_valid, mismatch_details
+
+
 def _find_matching_enrollment_batch(db, class_id: str, row, keys, enrollments_by_id, enrollments_by_email, enrollments_by_name):
     """Find an enrollment using pre-fetched enrollment data with ID-first matching."""
     student_email, student_name, student_id = _extract_student_identity(row, keys)
@@ -3272,6 +3376,27 @@ async def upload_class_files(
         is_valid, error_msg = _validate_parsed_data(rows, type)
         if not is_valid:
             raise HTTPException(status_code=400, detail=f"{upload.filename}: {error_msg}")
+
+        # Validate student data match for gradesheet and attendance uploads
+        if type in ("gradesheet", "attendance"):
+            keys = list(rows[0].keys())
+            is_match_valid, mismatch_details = _validate_student_data_match(db, class_id, rows, keys, type)
+            if not is_match_valid:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": "Student data mismatch detected",
+                        "file": upload.filename,
+                        "upload_type": type,
+                        "match_percentage": mismatch_details["match_percentage"],
+                        "mismatch_percentage": mismatch_details["mismatch_percentage"],
+                        "threshold": mismatch_details["threshold"],
+                        "total_students": mismatch_details["total_students"],
+                        "matched_students": mismatch_details["matched_students"],
+                        "mismatched_students": mismatch_details["mismatched_students"],
+                        "mismatch_details": mismatch_details["mismatch_reasons"]
+                    }
+                )
 
         keys = list(rows[0].keys())
         if type == "gradesheet":

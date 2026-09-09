@@ -121,6 +121,10 @@ export async function uploadClassFiles(classId, files, type) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    // Preserve the full error details for mismatch errors
+    if (data.detail && typeof data.detail === 'object' && data.detail.error === 'Student data mismatch detected') {
+      throw new Error(JSON.stringify(data.detail));
+    }
     throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Upload failed');
   }
   return data;

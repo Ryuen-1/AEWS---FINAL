@@ -214,7 +214,30 @@ export default function ClassGrades() {
       await loadData()
     } catch (err) {
       const errorMessage = err.message || 'Upload failed'
-      setGradesheetError(errorMessage)
+      
+      // Check if it's a student data mismatch error
+      try {
+        const errorData = JSON.parse(errorMessage)
+        if (errorData.error === 'Student data mismatch detected') {
+          const mismatchDetails = errorData.mismatch_details || []
+          const mismatchReasons = mismatchDetails.map(m => 
+            `${m.student_name || 'Unknown'} (${m.student_id || 'No ID'}): ${m.reasons.join(', ')}`
+          ).join('\n')
+          
+          setGradesheetError(
+            `Upload Rejected: Student Data Mismatch\n` +
+            `Total students: ${errorData.total_students}\n` +
+            `Matched: ${errorData.matched_students} (${errorData.match_percentage})\n` +
+            `Mismatched: ${errorData.mismatched_students} (${errorData.mismatch_percentage})\n` +
+            `Threshold: ${errorData.threshold}\n\n` +
+            `Mismatch Details:\n${mismatchReasons}`
+          )
+        } else {
+          setGradesheetError(errorMessage)
+        }
+      } catch {
+        setGradesheetError(errorMessage)
+      }
     } finally {
       setUploadingGradesheet(false)
       if (gradesheetInputRef.current) gradesheetInputRef.current.value = ''
