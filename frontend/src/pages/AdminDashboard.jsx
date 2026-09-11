@@ -132,6 +132,7 @@ export default function AdminDashboard() {
         <DashboardPageHeader
           welcome={mainTab === 'overview'}
           accent="slate"
+          heroIcon={mainTab === 'overview' ? Shield : null}
           eyebrow={mainTab === 'overview' ? 'Institution administration' : 'Administrator workflow'}
           title={mainTab === 'overview' ? `Welcome back${user?.name ? `, ${user.name}` : ''}.` : contentTitle}
           description={mainTab === 'overview' ? 'Keep account approvals, departments, and institution oversight moving. Start with the task that needs your attention, then review the records below.' : contentSubtitle}

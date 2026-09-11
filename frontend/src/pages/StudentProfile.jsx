@@ -1,46 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  GraduationCap,
-  User,
-  Mail,
-  Calendar,
-  Key,
-  Save,
-  ArrowLeft,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-} from 'lucide-react'
-import { getStudentProfile, updateStudentProfile, API_BASE } from '../api'
+import { AlertTriangle, CheckCircle2, Key, Mail, Send, User } from 'lucide-react'
+import { API_BASE, getStudentProfile } from '../api'
+import StudentLayout from '../components/StudentLayout'
 
 export default function StudentProfile() {
   const navigate = useNavigate()
+  const studentUser = useMemo(() => JSON.parse(localStorage.getItem('student_user') || '{}'), [])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [profile, setProfile] = useState({
-    name: '',
-    email: '',
-    id_number: '',
-    created_at: null,
-    password_changed_at: null,
-  })
-  const [editedProfile, setEditedProfile] = useState({
-    name: '',
-    email: '',
-    id_number: '',
-  })
-  const [showPasswordModal, setShowPasswordModal] = useState(false)
-  const [passwordData, setPasswordData] = useState({
-    oldPassword: '',
-    newPassword: '',
-  })
+  const [profile, setProfile] = useState({ name: '', email: '', id_number: '' })
+  const [passwordData, setPasswordData] = useState({ current_password: '', new_password: '', confirm_password: '', verification_code: '' })
+  const [codeSending, setCodeSending] = useState(false)
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [passwordMessage, setPasswordMessage] = useState('')
   const [passwordError, setPasswordError] = useState('')
-  const [passwordSuccess, setPasswordSuccess] = useState('')
-
-  const studentUser = JSON.parse(localStorage.getItem('student_user') || '{}')
+  const [codeSent, setCodeSent] = useState(false)
 
   useEffect(() => {
     if (!studentUser.id) {
@@ -59,13 +34,6 @@ export default function StudentProfile() {
         name: data.name || '',
         email: data.email || '',
         id_number: data.id_number || '',
-        created_at: data.created_at || null,
-        password_changed_at: data.password_changed_at || null,
-      })
-      setEditedProfile({
-        name: data.name || '',
-        email: data.email || '',
-        id_number: data.id_number || '',
       })
     } catch (err) {
       setError(err.message || 'Failed to load profile')
@@ -74,75 +42,85 @@ export default function StudentProfile() {
     }
   }
 
-  const handleSaveProfile = async (e) => {
-    e.preventDefault()
-    setSaving(true)
-    setError('')
-    setSuccess('')
+  const studentIdentifier = profile.id_number || studentUser.student_id || studentUser.id_number || studentUser.id || ''
 
+  const requestVerificationCode = async () => {
+    setPasswordError('')
+    setPasswordMessage('')
+    if (!studentIdentifier) {
+      setPasswordError('Student account identifier is missing.')
+      return
+    }
     try {
-      const studentUser = JSON.parse(localStorage.getItem('student_user') || '{}')
-      const updatedData = await updateStudentProfile({
-        ...editedProfile,
-        student_id: studentUser.student_id || '',
+      setCodeSending(true)
+      const response = await fetch(`${API_BASE}/api/public/students/password-change-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id: studentIdentifier }),
       })
-      setProfile({
-        name: updatedData.name || editedProfile.name,
-        email: updatedData.email || editedProfile.email,
-        id_number: updatedData.id_number || editedProfile.id_number,
-        created_at: updatedData.created_at || profile.created_at,
-        password_changed_at: updatedData.password_changed_at || profile.password_changed_at,
-      })
-      setSuccess('Profile updated successfully')
-      setTimeout(() => setSuccess(''), 3000)
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.detail || 'Failed to send verification code.')
+      setCodeSent(true)
+      setPasswordMessage(data.message || 'Verification code sent to your email.')
     } catch (err) {
-      setError(err.message || 'Failed to update profile')
+      setPasswordError(err.message || 'Failed to send verification code.')
     } finally {
-      setSaving(false)
+      setCodeSending(false)
     }
   }
 
-  const handleChangePassword = async (e) => {
+  const handlePasswordChange = async (e) => {
     e.preventDefault()
     setPasswordError('')
-    setPasswordSuccess('')
+    setPasswordMessage('')
+
+    if (!passwordData.current_password || !passwordData.new_password || !passwordData.confirm_password || !passwordData.verification_code) {
+      setPasswordError('Please complete all password and verification code fields.')
+      return
+    }
+    if (passwordData.new_password.length < 6) {
+      setPasswordError('New password must be at least 6 characters.')
+      return
+    }
+    if (passwordData.new_password !== passwordData.confirm_password) {
+      setPasswordError('New password and retyped password do not match.')
+      return
+    }
 
     try {
+      setPasswordSaving(true)
       const response = await fetch(`${API_BASE}/api/public/students/change-password`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...passwordData,
-          student_id: profile.id_number,
+          student_id: studentIdentifier,
+          current_password: passwordData.current_password,
+          new_password: passwordData.new_password,
+          verification_code: passwordData.verification_code,
         }),
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.detail || 'Failed to change password')
-      }
-
-      setPasswordSuccess('Password changed successfully')
-      setPasswordData({ oldPassword: '', newPassword: '' })
-      setTimeout(() => {
-        setShowPasswordModal(false)
-        setPasswordSuccess('')
-      }, 2000)
-      // Reload profile to update password changed date
-      loadProfile()
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.detail || 'Failed to change password.')
+      setPasswordMessage(data.message || 'Password changed successfully.')
+      setPasswordData({ current_password: '', new_password: '', confirm_password: '', verification_code: '' })
+      setCodeSent(false)
     } catch (err) {
-      setPasswordError(err.message || 'Failed to change password')
+      setPasswordError(err.message || 'Failed to change password.')
+    } finally {
+      setPasswordSaving(false)
     }
+  }
+
+  const setPasswordField = (field, value) => {
+    setPasswordData((prev) => ({ ...prev, [field]: value }))
+    setPasswordError('')
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
           <p className="mt-4 text-slate-600">Loading profile...</p>
         </div>
       </div>
@@ -150,316 +128,101 @@ export default function StudentProfile() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => navigate('/student-dashboard')}
-                className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </button>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
-                  <User className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-lg font-bold text-slate-900">My Profile</h1>
-                  <p className="text-xs text-slate-500">Manage your account information</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <StudentLayout title="My Profile" subtitle="Student account information" student={profile}>
+      <div className="mx-auto max-w-3xl space-y-6">
         {error && (
-          <div className="mb-6 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
-            <XCircle className="w-4 h-4 flex-shrink-0" />
+          <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
             {error}
           </div>
         )}
 
-        {success && (
-          <div className="mb-6 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700 flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 flex-shrink-0" />
-            {success}
-          </div>
-        )}
-
-        {/* Profile Information Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
-            <h2 className="text-lg font-semibold text-white">Personal Information</h2>
-            <p className="text-sm text-blue-100">Update your account details</p>
+        <div className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
+          <div className="bg-gradient-to-r from-blue-600 to-sky-500 px-6 py-5">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-100">Student profile</p>
+            <h2 className="mt-1 text-xl font-bold text-white">Personal Information</h2>
           </div>
 
-          <form onSubmit={handleSaveProfile} className="p-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label htmlFor="name" className="block text-sm font-semibold text-slate-700 mb-2">
-                  Full Name
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <User className="h-5 w-5 text-slate-400" />
-                  </div>
-                  <input
-                    id="name"
-                    type="text"
-                    value={editedProfile.name}
-                    onChange={(e) => setEditedProfile({ ...editedProfile, name: e.target.value })}
-                    className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="Enter your full name"
-                  />
-                </div>
+          <div className="grid gap-4 p-6 md:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+                <User className="h-5 w-5" />
               </div>
-
-              <div>
-                <label htmlFor="id_number" className="block text-sm font-semibold text-slate-700 mb-2">
-                  Student ID
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <GraduationCap className="h-5 w-5 text-slate-400" />
-                  </div>
-                  <input
-                    id="id_number"
-                    type="text"
-                    value={editedProfile.id_number}
-                    onChange={(e) => setEditedProfile({ ...editedProfile, id_number: e.target.value })}
-                    className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="Enter your student ID"
-                  />
-                </div>
-              </div>
-
-              <div className="md:col-span-2">
-                <label htmlFor="email" className="block text-sm font-semibold text-slate-700 mb-2">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail className="h-5 w-5 text-slate-400" />
-                  </div>
-                  <input
-                    id="email"
-                    type="email"
-                    value={editedProfile.email}
-                    onChange={(e) => setEditedProfile({ ...editedProfile, email: e.target.value })}
-                    className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="Enter your email address"
-                  />
-                </div>
-              </div>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Name</p>
+              <p className="mt-2 text-lg font-semibold text-slate-900">{profile.name || 'Not available'}</p>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setEditedProfile(profile)}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-6 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {saving ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4" />
-                    Save Changes
-                  </>
-                )}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+                <Mail className="h-5 w-5" />
+              </div>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Email</p>
+              <p className="mt-2 break-words text-lg font-semibold text-slate-900">{profile.email || 'Not available'}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
+          <div className="border-b border-blue-100 bg-blue-50/60 px-6 py-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+                <Key className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">Account security</p>
+                <h2 className="mt-1 text-xl font-bold text-slate-900">Change Password</h2>
+                <p className="mt-1 text-sm text-slate-600">A verification code will be sent to your registered email before the password can be changed.</p>
+              </div>
+            </div>
+          </div>
+
+          <form onSubmit={handlePasswordChange} className="space-y-5 p-6">
+            {passwordError && (
+              <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <span>{passwordError}</span>
+              </div>
+            )}
+            {passwordMessage && (
+              <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <span>{passwordMessage}</span>
+              </div>
+            )}
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block md:col-span-2">
+                <span className="mb-2 block text-sm font-semibold text-slate-700">Current password</span>
+                <input type="password" value={passwordData.current_password} onChange={(e) => setPasswordField('current_password', e.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" placeholder="Enter current password" />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold text-slate-700">New password</span>
+                <input type="password" value={passwordData.new_password} onChange={(e) => setPasswordField('new_password', e.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" placeholder="Enter new password" />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold text-slate-700">Retype new password</span>
+                <input type="password" value={passwordData.confirm_password} onChange={(e) => setPasswordField('confirm_password', e.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" placeholder="Retype new password" />
+              </label>
+              <label className="block md:col-span-2">
+                <span className="mb-2 block text-sm font-semibold text-slate-700">Email verification code</span>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <input type="text" inputMode="numeric" maxLength={6} value={passwordData.verification_code} onChange={(e) => setPasswordField('verification_code', e.target.value.replace(/\D/g, '').slice(0, 6))} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm tracking-[0.35em] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" placeholder="000000" />
+                  <button type="button" onClick={requestVerificationCode} disabled={codeSending || !profile.email} className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60">
+                    <Send className="h-4 w-4" /> {codeSending ? 'Sending...' : codeSent ? 'Resend code' : 'Send code'}
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-slate-500">The code will be sent to {profile.email || 'your registered email'} and expires in 10 minutes.</p>
+              </label>
+            </div>
+
+            <div className="flex justify-end border-t border-slate-100 pt-4">
+              <button type="submit" disabled={passwordSaving} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+                <Key className="h-4 w-4" /> {passwordSaving ? 'Changing password...' : 'Change Password'}
               </button>
             </div>
           </form>
         </div>
-
-        {/* Account Information Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-          <div className="bg-gradient-to-r from-slate-600 to-slate-700 px-6 py-4">
-            <h2 className="text-lg font-semibold text-white">Account Information</h2>
-            <p className="text-sm text-slate-300">Your account details and status</p>
-          </div>
-
-          <div className="p-6 space-y-4">
-            <div className="flex items-center justify-between py-3 border-b border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
-                  <Calendar className="h-5 w-5 text-slate-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-900">Account Created</p>
-                  <p className="text-xs text-slate-500">When your account was created</p>
-                </div>
-              </div>
-              <p className="text-sm text-slate-700">
-                {profile.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                }) : 'N/A'}
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between py-3 border-b border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
-                  <Key className="h-5 w-5 text-slate-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-900">Password Last Changed</p>
-                  <p className="text-xs text-slate-500">When you last changed your password</p>
-                </div>
-              </div>
-              <p className="text-sm text-slate-700">
-                {profile.password_changed_at ? new Date(profile.password_changed_at).toLocaleDateString('en-US', { 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                }) : 'Never'}
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between py-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <GraduationCap className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-900">Account Status</p>
-                  <p className="text-xs text-slate-500">Your current account status</p>
-                </div>
-              </div>
-              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
-                <CheckCircle className="w-3.5 h-3.5" />
-                Active
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Security Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4">
-            <h2 className="text-lg font-semibold text-white">Security</h2>
-            <p className="text-sm text-amber-100">Manage your password and security settings</p>
-          </div>
-
-          <div className="p-6">
-            <button
-              onClick={() => setShowPasswordModal(true)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium text-white bg-slate-600 hover:bg-slate-700 transition-colors"
-            >
-              <Key className="h-4 w-4" />
-              Change Password
-            </button>
-          </div>
-        </div>
-      </main>
-
-      {/* Password Change Modal */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md">
-            <div className="flex items-start justify-between px-6 py-4 border-b border-slate-100">
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900">Change Password</h3>
-                <p className="text-sm text-slate-500">Update your account password</p>
-              </div>
-              <button
-                onClick={() => setShowPasswordModal(false)}
-                className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
-              >
-                <XCircle className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {passwordError && (
-                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                  {passwordError}
-                </div>
-              )}
-
-              {passwordSuccess && (
-                <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700 flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                  {passwordSuccess}
-                </div>
-              )}
-
-              <form onSubmit={handleChangePassword} className="space-y-4">
-                <div>
-                  <label htmlFor="oldPassword" className="block text-sm font-semibold text-slate-700 mb-2">
-                    Current Password
-                  </label>
-                  <input
-                    id="oldPassword"
-                    type="password"
-                    value={passwordData.oldPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, oldPassword: e.target.value })}
-                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="Enter your current password"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="newPassword" className="block text-sm font-semibold text-slate-700 mb-2">
-                    New Password
-                  </label>
-                  <input
-                    id="newPassword"
-                    type="password"
-                    value={passwordData.newPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="Enter your new password (min 6 characters)"
-                    required
-                    minLength={6}
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPasswordModal(false)
-                      setPasswordData({ oldPassword: '', newPassword: '' })
-                      setPasswordError('')
-                      setPasswordSuccess('')
-                    }}
-                    className="px-4 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors"
-                  >
-                    Change Password
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      </div>
+    </StudentLayout>
   )
 }

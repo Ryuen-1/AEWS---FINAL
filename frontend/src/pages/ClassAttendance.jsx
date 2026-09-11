@@ -6,6 +6,7 @@ import AttendanceTableView from '../components/instructor/AttendanceTableView'
 import InlineToast from '../components/InlineToast'
 import { useAuth } from '../context/AuthContext'
 import { getClass, getClassAttendance, uploadClassFiles } from '../api'
+import { sortStudentsByName } from '../lib/studentSort'
 
 function formatAutoReferralUploadMessage(students) {
   if (!Array.isArray(students) || students.length === 0) return ''
@@ -14,8 +15,8 @@ function formatAutoReferralUploadMessage(students) {
     .filter(([, value]) => Boolean(value))
     .map(([key]) => {
       if (key === 'on_probation_status') return 'on probation status'
-      if (key === 'grade_2_5_or_below') return 'midterm grade is 2.50 or below'
-      if (key === 'gwa_2_5_or_below') return 'GWA is 2.5 or below'
+      if (key === 'grade_2_5_or_below') return 'midterm grade is 2.50 down to 5.00'
+      if (key === 'gwa_2_5_or_below') return 'GWA is 2.50 down to 5.00'
       if (key === 'low_midterm_performance') return 'low midterm academic performance'
       if (key === 'difficulty_catching_up') return 'difficulty with catching up instructions'
       return key
@@ -167,7 +168,7 @@ export default function ClassAttendance() {
     )
   }
 
-  const students = attendanceData?.students || []
+  const students = sortStudentsByName(attendanceData?.students)
   const subjectCode = classData?.subject_code || attendanceData?.class?.subject_code || ''
   const subjectName = classData?.subject_name || attendanceData?.class?.subject_name || ''
   const sectionCode = classData?.section_code || attendanceData?.class?.section_code || ''

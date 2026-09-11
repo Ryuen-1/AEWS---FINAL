@@ -184,6 +184,30 @@ def send_email_change_code(to_email: str, code: str, user_name: str) -> tuple[bo
         return False, "Unable to send verification email"
 
 
+def send_password_change_code(to_email: str, code: str, user_name: str) -> tuple[bool, str | None]:
+    """Send a short-lived code to confirm a password change, never log the code."""
+    host, port, user, password, from_email = _get_gmail_config()
+    if host is None:
+        return False, "Email delivery is not configured"
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "Verify your password change - Academic Early Warning System"
+    msg["From"] = from_email
+    msg["To"] = to_email
+    plain = f"Hello {user_name},\n\nYour password change verification code is: {code}\n\nEnter this code in your student profile within 10 minutes. If you did not request a password change, ignore this email and keep your current password."
+    html = f'<h2>Verify your password change</h2><p>Hello {escape(user_name)},</p><p>Enter this code in your student profile:</p><p style="font-size:28px;letter-spacing:6px;font-weight:bold">{code}</p><p>This code expires in 10 minutes. If you did not request a password change, ignore this email and keep your current password.</p>'
+    msg.attach(MIMEText(plain, "plain", "utf-8"))
+    msg.attach(MIMEText(html, "html", "utf-8"))
+    try:
+        with smtplib.SMTP(host, port, timeout=15) as server:
+            server.starttls()
+            server.login(user, password)
+            server.sendmail(from_email, to_email, msg.as_string())
+        return True, None
+    except Exception:
+        logger.warning("Password change code delivery failed")
+        return False, "Unable to send verification email"
+
+
 def send_password_reset_email(to_email: str, reset_link: str, user_name: str) -> tuple[bool, str | None]:
     """Send password reset email via Gmail SMTP. Returns (True, None) if sent, (False, error_message) otherwise."""
     config = _get_gmail_config()

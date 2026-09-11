@@ -42,10 +42,14 @@ Training datasets:
 Training script:
 - `backend/scripts/train_student_risk_model.py`
 
+Dataset validation:
+- `python backend/scripts/validate_training_datasets.py`
+
 Saved artifacts:
 - `backend/xgboost_student_risk.pkl`
 - `backend/xgboost_student_risk.json`
 - `backend/xgboost_student_risk_metrics.json`
 
 Additional documentation:
+- [DATASET_SOURCES.md](c:\Users\Ian\Desktop\SYSTEM FOR 2ND SEM\stone\backend\DATASET_SOURCES.md)
 - [MODEL_DOCUMENTATION.md](c:\Users\Ian\Desktop\SYSTEM FOR 2ND SEM\stone\backend\MODEL_DOCUMENTATION.md)

@@ -15,6 +15,10 @@ const PROFILE_META = {
     label: 'Midterm, Attendance, and Needs Assessment',
     description: 'Uses the saved retrained pipeline based on midterm grade, attendance, and needs assessment factors.',
   },
+  midterm_attendance_needs_with_components: {
+    label: 'Midterm, Attendance, Needs, and Grade Components',
+    description: 'Uses prior GPA, failed subjects, attendance, needs-assessment indicators, midterm grade, class standing, laboratory, and major output.',
+  },
 }
 
 const MODEL_META = {
@@ -128,15 +132,15 @@ export default function AdminSystemAnalytics() {
         </div>
       )}
 
-      <div className="rounded-2xl border border-cyan-200/80 bg-gradient-to-r from-cyan-50 via-sky-50 to-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-r from-slate-50 via-gray-50 to-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">Model Analytics</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Model Analytics</p>
             <h3 className="text-lg font-semibold text-slate-900">Current production model performance</h3>
             <p className="text-sm text-slate-600">
               {latestAccuracy ? (
                 <>
-                  The active profile is <span className="font-semibold text-slate-800">{activeProfile.label}</span>, and the current saved runtime model is <span className="font-semibold text-slate-800">{activeModelLabel}</span>.
+                  Active profile: <span className="font-semibold text-slate-800">{activeProfile.label}</span>. Runtime model: <span className="font-semibold text-slate-800">{activeModelLabel}</span>.
                 </>
               ) : (
                 'No saved training metrics yet. Use the button to run a real training pass before your demo.'
@@ -148,7 +152,7 @@ export default function AdminSystemAnalytics() {
               type="button"
               onClick={handleTrainModel}
               disabled={training}
-              className="inline-flex items-center justify-center rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:bg-cyan-300"
+              className="inline-flex items-center justify-center rounded-xl bg-slate-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               {training ? 'Training Model...' : 'Train Model'}
             </button>
@@ -158,25 +162,25 @@ export default function AdminSystemAnalytics() {
         {latestAccuracy ? (
           <>
           <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <div className="rounded-xl border border-cyan-100 bg-white/85 p-3.5">
+            <div className="rounded-xl border border-slate-200 bg-white/85 p-3.5">
               <p className="text-[11px] uppercase tracking-wide text-slate-500">Holdout</p>
-              <p className="mt-1 text-lg font-bold text-cyan-600">
+              <p className="mt-1 text-lg font-bold text-slate-700">
                 {latestAccuracy.accuracy.toFixed(2)}%
               </p>
             </div>
-            <div className="rounded-xl border border-cyan-100 bg-white/85 p-3.5">
+            <div className="rounded-xl border border-slate-200 bg-white/85 p-3.5">
               <p className="text-[11px] uppercase tracking-wide text-slate-500">Precision</p>
               <p className="mt-1 text-lg font-bold text-emerald-600">
                 {latestAccuracy.precision.toFixed(2)}%
               </p>
             </div>
-            <div className="rounded-xl border border-cyan-100 bg-white/85 p-3.5">
+            <div className="rounded-xl border border-slate-200 bg-white/85 p-3.5">
               <p className="text-[11px] uppercase tracking-wide text-slate-500">Recall</p>
               <p className="mt-1 text-lg font-bold text-blue-600">
                 {latestAccuracy.recall.toFixed(2)}%
               </p>
             </div>
-            <div className="rounded-xl border border-cyan-100 bg-white/85 p-3.5">
+            <div className="rounded-xl border border-slate-200 bg-white/85 p-3.5">
               <p className="text-[11px] uppercase tracking-wide text-slate-500">F1 Score</p>
               <p className="mt-1 text-lg font-bold text-violet-600">
                 {latestAccuracy.f1.toFixed(2)}%
@@ -212,7 +216,7 @@ export default function AdminSystemAnalytics() {
           </div>
           </>
         ) : (
-          <div className="mt-4 rounded-xl border border-dashed border-cyan-200 bg-white/75 px-4 py-4 text-sm text-slate-600">
+          <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-white/75 px-4 py-4 text-sm text-slate-600">
             Training metrics and model comparison will appear here after the first successful run.
           </div>
         )}

@@ -27,6 +27,7 @@ import {
   previewClasslist,
   listUsers,
 } from '../api'
+import { sortStudentsByName } from '../lib/studentSort'
 
 const AI_CHECKBOX_FIELDS = [
   ['difficulty_understanding_lectures', 'Difficulty in understanding lectures'],
@@ -165,7 +166,7 @@ function getAutomaticReferralReasons(student) {
     return value <= 75
   }
   if (matchesMidtermReferralThreshold(student.midterm_grade)) {
-    reasons.push('Midterm grade is 2.50 or below')
+    reasons.push('Midterm grade is 2.50 down to 5.00')
   }
   if (student.low_midterm_academic_performance) {
     reasons.push('Low midterm academic performance')
@@ -326,7 +327,7 @@ export default function ClassDetails() {
     setRosterError('')
     try {
       const data = await listClassStudents(classId)
-      const nextRoster = Array.isArray(data) ? data : []
+      const nextRoster = sortStudentsByName(Array.isArray(data) ? data : [])
       const previousRoster = rosterSnapshotRef.current
       const newlyReferred = hasLoadedRosterRef.current
         ? nextRoster.filter((student) => {
@@ -541,6 +542,9 @@ export default function ClassDetails() {
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Students enrolled in this class. Use Needs Assessment for manual entry or bulk upload a needs-assessment sheet.
+                </p>
+                <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                  Midterm grades from 2.50 down to 5.00 are automatically referred to AMU.
                 </p>
               </div>
 

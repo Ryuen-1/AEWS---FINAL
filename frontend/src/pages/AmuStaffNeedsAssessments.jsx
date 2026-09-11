@@ -6,6 +6,7 @@ import PredictionResultsModal from '../components/amu-staff/PredictionResultsMod
 import { useAuth } from '../context/AuthContext'
 import { API_BASE, exportNeedsAssessmentResponses, getAmuStaffReferral, getAmuStaffReferrals } from '../api'
 import { getAuthHeaders } from '../lib/authStorage'
+import { sortStudentsByName } from '../lib/studentSort'
 
 function formatRoutingLabel(value) {
   if (!value) return 'Not set'
@@ -176,7 +177,7 @@ export default function AmuStaffNeedsAssessments() {
       setLoading(true)
       setError(null)
       const data = await getAmuStaffReferrals()
-      setItems(Array.isArray(data) ? data : [])
+      setItems(sortStudentsByName(data))
     } catch (e) {
       setError(e.message || 'Failed to load referred students')
       setItems([])
@@ -197,12 +198,12 @@ export default function AmuStaffNeedsAssessments() {
 
   const searchLower = search.trim().toLowerCase()
   const filtered = useMemo(() => {
-    if (!searchLower) return items
-    return items.filter((r) =>
+    const source = !searchLower ? items : items.filter((r) =>
       [r.student_name, r.student_email, r.subject_code, r.subject_name, r.student_id]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(searchLower)),
     )
+    return sortStudentsByName(source)
   }, [items, searchLower])
 
   const predictReadyItems = filtered.filter((item) => item.has_needs_assessment)

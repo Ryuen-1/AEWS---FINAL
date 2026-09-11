@@ -272,19 +272,46 @@ def _ensure_student_account(db, enrollment_doc: dict) -> tuple[str, str, bool]:
         logger.info(f"  Found existing student: {existing_student.get('name')}, email: {existing_student.get('email')}, id_number: {existing_student.get('id_number')}")
         logger.info(f"  Current enrollment email: {enrollment_doc.get('student_email')}, id: {enrollment_doc.get('student_id')}")
         
+        # If an uploaded class list created the student profile first, the account
+        # may already exist but still have no usable login credentials. Generate
+        # credentials in that case and send them with the referral emails.
+        if not existing_student.get("password_hash"):
+            password = _generate_password()
+            updates = {
+                "password_hash": _hash_password(password),
+                "role": "student",
+                "status": "active",
+                "email_verified": True,
+                "auto_created": True,
+            }
+            if student_name and not existing_student.get("name"):
+                updates["name"] = student_name
+            if student_id and not existing_student.get("id_number"):
+                updates["id_number"] = student_id
+            if student_email and not existing_student.get("email"):
+                updates["email"] = student_email.lower()
+            db.students.update_one({"_id": existing_student["_id"]}, {"$set": updates})
+            logger.info("Generated credentials for existing student profile without password_hash")
+            if not enrollment_doc.get("student_email") and student_email:
+                db.enrollments.update_one(
+                    {"_id": enrollment_doc["_id"]},
+                    {"$set": {"student_email": student_email}}
+                )
+            return student_email, password, True
+
         # If existing student has no email, update it and treat as needing credentials
         if not existing_student.get('email'):
             logger.info(f"  Existing student has no email, updating with: {student_email}")
             db.students.update_one(
                 {"_id": existing_student["_id"]},
-                {"$set": {"email": student_email.lower()}}
+                {"$set": {"email": student_email.lower(), "email_verified": True, "role": "student", "status": "active", "auto_created": True}}
             )
             # Generate a new password since they likely don't have working credentials
             password = _generate_password()
             password_hash = _hash_password(password)
             db.students.update_one(
                 {"_id": existing_student["_id"]},
-                {"$set": {"password_hash": password_hash}}
+                {"$set": {"password_hash": password_hash, "email_verified": True, "role": "student", "status": "active", "auto_created": True}}
             )
             logger.info(f"  Generated new password for student with missing email")
             return student_email, password, True  # Treat as new account to send credentials
@@ -419,7 +446,6 @@ def _send_referral_emails(db, enrollment_doc: dict, class_doc: dict, assigned_st
     logger.info(f"Credentials email check - is_new_account: {is_new_account}, has_password: {bool(password)}, already_sent: {bool(emails_sent.get('credentials'))}")
     if is_new_account and password and not emails_sent.get("credentials"):
         logger.info(f"Sending credentials email to {student_email}")
-        logger.info(f"  Password to send: {password}")
         logger.info(f"  Login URL: {login_url}")
         try:
             success, error = send_student_credentials_email(
@@ -3419,7 +3445,7 @@ async def upload_class_files(
 
     saved_files = []
     # classlist tracking
-    add_summary = {"added": 0, "skipped": 0, "invalid": 0}
+    add_summary = {"added": 0, "skipped": 0, "invalid": 0, "removed": 0}
     added_students = []
     skipped_students = []
     invalid_students = []
@@ -3514,33 +3540,10 @@ async def upload_class_files(
                 _name_cols.add(col)
 
         if type == "classlist":
-            # Batch fetch existing enrollments to reduce database queries
-            all_student_ids = []
-            all_student_names = []
-            all_student_emails = []
-            
-            for row in rows:
-                student_email, student_name, student_id = _extract_student_identity(row, keys)
-                student_id = _normalize_student_id(student_id)
-                if student_id:
-                    all_student_ids.append(student_id)
-                if student_name:
-                    all_student_names.append(student_name)
-                if student_email:
-                    all_student_emails.append(student_email)
-            
-            # Build query to fetch all existing enrollments in one query
-            existing_query = {"class_id": class_id}
-            if all_student_ids:
-                existing_query["$or"] = [
-                    {"student_id": {"$in": all_student_ids}},
-                    {"id_number": {"$in": all_student_ids}},
-                    {"student_email": {"$in": all_student_emails}},
-                ]
-            elif all_student_emails:
-                existing_query["student_email"] = {"$in": all_student_emails}
-            
-            existing_enrollments = list(db.enrollments.find(existing_query))
+            # Re-uploading a classlist replaces the roster for this class.
+            all_existing_enrollments = list(db.enrollments.find({"class_id": class_id}))
+            retained_enrollment_ids = set()
+            existing_enrollments = all_existing_enrollments
             
             # Build ID lookup with normalized variants for robust matching
             existing_by_id = {}
@@ -3628,6 +3631,7 @@ async def upload_class_files(
                         lookup_method = "name"
                 
                 if existing:
+                    retained_enrollment_ids.add(existing["_id"])
                     existing_updates = {}
                     if student_name and _normalize_cell(existing.get("student_name")) != student_name:
                         existing_updates["student_name"] = student_name
@@ -3657,9 +3661,19 @@ async def upload_class_files(
                     if section_code:
                         enrollment_data["section_code"] = section_code
                     
-                    db.enrollments.insert_one(enrollment_data)
+                    insert_result = db.enrollments.insert_one(enrollment_data)
+                    retained_enrollment_ids.add(insert_result.inserted_id)
                     add_summary['added'] += 1
                     added_students.append({"email": student_email or None, "name": student_name})
+
+            stale_enrollment_ids = [
+                enrollment["_id"]
+                for enrollment in all_existing_enrollments
+                if enrollment["_id"] not in retained_enrollment_ids
+            ]
+            if stale_enrollment_ids:
+                delete_result = db.enrollments.delete_many({"_id": {"$in": stale_enrollment_ids}})
+                add_summary["removed"] += delete_result.deleted_count
 
 
         elif type == "gradesheet":
@@ -3958,6 +3972,7 @@ async def upload_class_files(
         f"added={add_summary.get('added', 0)}, "
         f"skipped={add_summary.get('skipped', 0)}, "
         f"invalid={add_summary.get('invalid', 0)}, "
+        f"removed={add_summary.get('removed', 0)}, "
         f"auto_referred={len(auto_referred_students)}"
     )
     
@@ -3976,6 +3991,7 @@ async def upload_class_files(
             "added": add_summary.get("added", 0),
             "skipped": add_summary.get("skipped", 0),
             "invalid": add_summary.get("invalid", 0),
+            "removed": add_summary.get("removed", 0),
             "auto_referred_count": len(auto_referred_students),
         },
     )
@@ -4479,16 +4495,29 @@ async def upload_and_create_classlist(
 
 
 def _doc_to_class_response(doc, student_count: int = 0, at_risk_count: int = 0, section_code: str = None) -> dict:
+    resolved_section_code = section_code or doc.get("section_code") or ""
     return {
         "id": str(doc["_id"]),
         "subject_code": doc["subject_code"],
         "subject_name": doc["subject_name"],
         "instructor_id": doc["instructor_id"],
         "status": doc.get("status", "active"),
-        "section_code": section_code,
+        "section_code": resolved_section_code,
         "student_count": student_count,
         "at_risk_count": at_risk_count,
     }
+
+def _student_name_sort_key(row: dict) -> tuple[str, str]:
+    name = _normalize_cell(
+        row.get("student_name")
+        or row.get("name")
+        or row.get("student_email")
+        or row.get("email")
+        or row.get("student_id")
+        or row.get("id_number")
+    ).lower()
+    identifier = _normalize_cell(row.get("student_id") or row.get("id_number") or row.get("id")).lower()
+    return (name, identifier)
 
 
 @router.get("/risk-alerts")
@@ -4517,7 +4546,7 @@ def list_instructor_risk_alerts(instructor_id: str, actor: dict = Depends(get_cu
                     "subject_code": subject_code,
                     "subject_name": subject_name,
                 })
-        return alerts
+        return sorted(alerts, key=_student_name_sort_key)
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
@@ -4555,7 +4584,7 @@ def list_instructor_students(instructor_id: str, actor: dict = Depends(get_curre
                 if doc.get("lms_activity") is not None:
                     row["lms_activity"] = doc["lms_activity"]
                 rows.append(row)
-        return rows
+        return sorted(rows, key=_student_name_sort_key)
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
@@ -4914,7 +4943,7 @@ def list_class_students(class_id: str, actor: dict = Depends(get_current_actor))
                 if doc.get(field) is not None:
                     row[field] = doc[field]
             out.append(row)
-        return out
+        return sorted(out, key=_student_name_sort_key)
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
@@ -4950,7 +4979,7 @@ def get_class_risk_summary(class_id: str, actor: dict = Depends(get_current_acto
             "academic_count": academic_count,
             "external_count": external_count,
             "referred_count": referred_count,
-            "outcome_list": outcome_list,
+            "outcome_list": sorted(outcome_list, key=_student_name_sort_key),
         }
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")
@@ -4986,7 +5015,7 @@ def get_class_roster(class_id: str, actor: dict = Depends(get_current_actor)):
         return {
             "class_id": class_id,
             "section_code": section_code,
-            "students": students
+            "students": sorted(students, key=_student_name_sort_key)
         }
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")
@@ -5153,7 +5182,7 @@ def get_class_grades_with_analytics(class_id: str, actor: dict = Depends(get_cur
             "score_column_terms": score_column_terms,
             "activity_title_mappings": activity_title_mappings,
             "activity_title_mapping_count": len(activity_title_mappings) if isinstance(activity_title_mappings, dict) else 0,
-            "students": students,
+            "students": sorted(students, key=_student_name_sort_key),
             "analytics": analytics,
         }
     except ServerSelectionTimeoutError:
@@ -5299,7 +5328,7 @@ def get_class_attendance_with_analytics(class_id: str, actor: dict = Depends(get
                 "subject_code": class_doc.get("subject_code", ""),
                 "subject_name": class_doc.get("subject_name", ""),
             },
-            "students": students,
+            "students": sorted(students, key=_student_name_sort_key),
             "analytics": analytics,
         }
         

@@ -1,4 +1,5 @@
-import { X, Download, Eye } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { X, Download } from 'lucide-react'
 import { generateNeedsAssessmentPDF, downloadPDF } from '../utils/pdfGenerator'
 
 export default function NeedsAssessmentPreviewModal({ isOpen, onClose, needsAssessment, studentInfo, referralInfo }) {
@@ -15,9 +16,9 @@ export default function NeedsAssessmentPreviewModal({ isOpen, onClose, needsAsse
     }
   }
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+  return createPortal(
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+      <div className="relative z-[201] bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <h2 className="text-xl font-bold text-slate-900">Needs Assessment Form</h2>
@@ -114,6 +115,7 @@ export default function NeedsAssessmentPreviewModal({ isOpen, onClose, needsAsse
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

@@ -9,8 +9,9 @@ ROLE_TO_COLLECTION = {
     "instructor": "instructor",
     "admin": "admin",
     "amu-staff": "amustaff",
+    "student": "students",
 }
-ROLE_COLLECTIONS = list(ROLE_TO_COLLECTION.values())
+ROLE_COLLECTIONS = [collection for role, collection in ROLE_TO_COLLECTION.items() if role != "student"]
 
 
 def get_client() -> MongoClient:
@@ -27,7 +28,7 @@ def get_db() -> Database:
 
 
 def get_collection_for_role(role: str) -> str:
-    """Return the collection name for a given role (instructor, admin, amu-staff)."""
+    """Return the collection name for a given role (instructor, admin, amu-staff, student)."""
     if role not in ROLE_TO_COLLECTION:
         raise ValueError(f"Invalid role: {role}")
     return ROLE_TO_COLLECTION[role]

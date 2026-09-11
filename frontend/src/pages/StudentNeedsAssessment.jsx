@@ -65,12 +65,12 @@ function validateRequiredFields(values, sections) {
 }
 
 function renderField(field, value, setValue, error) {
-  const sharedClass = `w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-300/40 ${
-    error ? 'border-red-300 bg-red-50/40' : 'border-slate-200'
+  const sharedClass = `w-full rounded-xl border px-3.5 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${
+    error ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white'
   }`
   const helpText = field.help_text ? <p className="mt-1 text-xs leading-relaxed text-slate-500">{field.help_text}</p> : null
   const label = (
-    <span className="mb-1 block text-sm font-medium text-slate-700">
+    <span className="mb-2 block text-sm font-semibold text-slate-700">
       {field.label}
       {field.required ? <span className="ml-1 text-red-600">*</span> : null}
     </span>
@@ -79,12 +79,12 @@ function renderField(field, value, setValue, error) {
 
   if (field.type === 'boolean') {
     return (
-      <label key={field.id} className={`flex items-start gap-3 rounded-lg border px-3 py-3 text-sm text-slate-700 transition hover:bg-slate-50 ${error ? 'border-red-300 bg-red-50/40' : 'border-slate-200'}`}>
+      <label key={field.id} className={`flex items-start gap-3 rounded-xl border px-3.5 py-3 text-sm text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/40 ${error ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white'}`}>
         <input
           type="checkbox"
           checked={Boolean(value)}
           onChange={(e) => setValue(field.name, e.target.checked)}
-          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
         />
         <span>
           {field.label}
@@ -233,23 +233,26 @@ export default function StudentNeedsAssessment() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 px-4 py-6 sm:py-10">
-      <div className="mx-auto flex max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:h-[calc(100vh-5rem)]">
-        <div className="border-b border-slate-200 bg-white px-6 py-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600">
-              <ClipboardList className="h-5 w-5" />
+    <div className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#dcecff_0,#edf6ff_38%,#f8fbff_68%,#eef6ff_100%)] px-4 py-6 sm:py-10">
+      <div className="pointer-events-none fixed -left-24 top-10 h-72 w-72 rounded-full bg-blue-300/25 blur-3xl" aria-hidden="true" />
+      <div className="pointer-events-none fixed -right-20 bottom-10 h-80 w-80 rounded-full bg-sky-300/20 blur-3xl" aria-hidden="true" />
+      <div className="relative mx-auto flex max-w-4xl flex-col overflow-hidden rounded-[1.75rem] border border-blue-100/80 bg-white shadow-2xl shadow-blue-900/10 sm:h-[calc(100vh-5rem)]">
+        <div className="relative z-20 border-b border-blue-100 bg-white px-6 py-5 shadow-sm">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50 text-blue-700 shadow-sm">
+              <ClipboardList className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold tracking-tight text-slate-900">{formTemplate?.title || 'Needs Assessment Form'}</h1>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">Student support form</p>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">{formTemplate?.title || 'Needs Assessment Form'}</h1>
               <p className="mt-1 text-sm text-slate-500">Academic Early Warning System</p>
             </div>
           </div>
         </div>
 
-        <div className="clean-scrollbar flex-1 overflow-y-auto px-6 py-6">
+        <div className="clean-scrollbar relative z-10 flex-1 overflow-y-auto bg-slate-50/60 px-6 pt-6">
           {loading && (
-            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+            <div className="flex items-center gap-2 rounded-2xl border border-blue-100 bg-white px-4 py-4 text-sm text-slate-600">
               <LoaderCircle className="h-4 w-4 animate-spin" />
               Loading form...
             </div>
@@ -262,17 +265,10 @@ export default function StudentNeedsAssessment() {
             </div>
           )}
 
-          {!loading && success && (
-            <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-700">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              <span>{success}</span>
-            </div>
-          )}
-
           {!loading && meta && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               {meta.referral_reason && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-sm text-amber-800">
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
                     <div>
@@ -288,7 +284,7 @@ export default function StudentNeedsAssessment() {
                 </div>
               )}
 
-              <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700 sm:grid-cols-3">
+              <div className="grid gap-3 rounded-2xl border border-blue-100 bg-white px-4 py-3.5 text-sm text-slate-700 sm:grid-cols-3">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Student</p>
                   <p className="mt-1 font-medium text-slate-900">{meta.student_name || 'Student'}</p>
@@ -304,12 +300,23 @@ export default function StudentNeedsAssessment() {
               </div>
 
               {!meta.can_submit ? (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-5 text-sm text-emerald-700">
-                  This form was already completed. Thank you for submitting your response.
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 text-sm text-emerald-800 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                      <CheckCircle2 className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-emerald-900">Needs assessment submitted</p>
+                      <p className="mt-1 leading-6 text-emerald-800">
+                        {success || 'This form was already completed. Thank you for submitting your response.'}
+                      </p>
+                      <p className="mt-1 text-xs font-medium text-emerald-700">AMU staff can now review your response.</p>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-5">
-                  <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+                  <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-xs text-slate-600">
                     <span className="font-medium text-slate-700">{sections.length} section{sections.length === 1 ? '' : 's'}</span>
                     <span className="h-1 w-1 rounded-full bg-slate-300" />
                     <span>{totalFields} field{totalFields === 1 ? '' : 's'}</span>
@@ -321,9 +328,9 @@ export default function StudentNeedsAssessment() {
                   {sections.map((section) => {
                     const allBoolean = section.fields.length > 0 && section.fields.every((field) => field.type === 'boolean')
                     return (
-                      <section key={section.id} className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5 sm:py-5">
+                      <section key={section.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5 sm:py-5">
                         <div className="border-b border-slate-100 pb-3">
-                          <h2 className="text-base font-semibold tracking-tight text-slate-900">{section.title}</h2>
+                          <h2 className="text-base font-bold tracking-tight text-slate-900">{section.title}</h2>
                           {section.description ? <p className="mt-1 text-sm leading-relaxed text-slate-500">{section.description}</p> : null}
                         </div>
                         <div className={`mt-4 grid gap-3 ${allBoolean ? 'sm:grid-cols-2' : 'sm:grid-cols-2'}`}>
@@ -333,12 +340,13 @@ export default function StudentNeedsAssessment() {
                     )
                   })}
 
-                  <div className="sticky bottom-0 z-10 -mx-6 border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
-                    <div className="mx-auto flex max-w-4xl items-center justify-end">
+                  <div className="sticky bottom-0 z-30 -mx-6 mt-6 rounded-b-[1.75rem] border-t border-blue-100 bg-white px-6 py-4 shadow-[0_-18px_30px_rgba(255,255,255,1)]">
+                    <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
+                      <p className="hidden text-xs text-slate-500 sm:block">Review your answers before submitting. Once submitted, AMU staff can review your response.</p>
                       <button
                         type="submit"
                         disabled={saving}
-                        className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                        className="ml-auto inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-sky-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition hover:from-blue-700 hover:to-sky-600 disabled:opacity-60"
                       >
                         {saving ? 'Submitting...' : 'Submit Needs Assessment'}
                       </button>

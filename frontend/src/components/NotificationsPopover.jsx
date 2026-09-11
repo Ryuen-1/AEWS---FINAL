@@ -37,7 +37,7 @@ export default function NotificationsPopover({
   const styles = VARIANT[variant] || VARIANT.instructor
   const unreadNotifications = notifications.filter((n) => !n.read)
   const unreadCount = unreadNotifications.length
-  const displayList = unreadNotifications.slice(0, 8)
+  const displayList = notifications.slice(0, 8)
 
   return (
     <div className="w-[380px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden flex flex-col max-h-[420px]">
@@ -65,13 +65,13 @@ export default function NotificationsPopover({
         </div>
       </div>
       <div className="clean-scrollbar overflow-y-auto flex-1 min-h-0">
-        {displayList.length === 0 ? (
+        {notifications.length === 0 ? (
           <div className="py-10 px-4 text-center">
             <div className={`w-12 h-12 rounded-xl ${styles.accentBg} flex items-center justify-center mx-auto mb-3`}>
               <Inbox className="w-6 h-6 text-gray-500" />
             </div>
-            <p className="text-sm font-medium text-gray-700">You're all caught up</p>
-            <p className="text-xs text-gray-500 mt-0.5">No new notifications</p>
+            <p className="text-sm font-medium text-gray-700">No notifications</p>
+            <p className="text-xs text-gray-500 mt-0.5">New updates will appear here.</p>
             {variant === 'admin' && (
               <Link
                 to="/admin"
@@ -102,7 +102,7 @@ export default function NotificationsPopover({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
-                        <p className="font-medium text-gray-900 text-sm leading-snug line-clamp-2">{n.title}</p>
+                        <p className={`font-medium text-sm leading-snug line-clamp-2 ${n.read ? 'text-gray-600' : 'text-gray-900'}`}>{n.title}</p>
                         {!n.read && (
                           <button
                             type="button"
@@ -117,7 +117,7 @@ export default function NotificationsPopover({
                           </button>
                         )}
                       </div>
-                      <p className="mt-0.5 text-xs text-gray-500 line-clamp-2">{n.body}</p>
+                      <p className={`mt-0.5 text-xs line-clamp-2 ${n.read ? 'text-gray-400' : 'text-gray-500'}`}>{n.body}</p>
                       <p className="mt-1 flex items-center gap-1 text-xs text-gray-400">
                         <Clock className="w-3 h-3 flex-shrink-0" />
                         {n.time}

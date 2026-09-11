@@ -5,6 +5,7 @@ import DashboardLayout from '../components/DashboardLayout'
 import ScrollTableContainer from '../components/ScrollTableContainer'
 import { useAuth } from '../context/AuthContext'
 import { getClass, listClassStudents } from '../api'
+import { sortStudentsByName } from '../lib/studentSort'
 
 const GRADE_SECTIONS = [
   { key: 'current', label: 'Current Term Grades' },
@@ -40,7 +41,7 @@ export default function PreviousFinalGrades() {
     try {
       const [klass, roster] = await Promise.all([getClass(id), listClassStudents(id)])
       setClassData(klass)
-      setStudents(Array.isArray(roster) ? roster : [])
+      setStudents(sortStudentsByName(roster))
       setError('')
     } catch (err) {
       setError(err.message || 'Failed to load previous final grades')

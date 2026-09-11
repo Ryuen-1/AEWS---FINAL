@@ -3,6 +3,7 @@ import { User, BookOpen, Search, AlertTriangle } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { getInstructorStudentList } from '../../api'
 import ScrollTableContainer from '../ScrollTableContainer'
+import { sortStudentsByName } from '../../lib/studentSort'
 
 export default function InstructorStudentList() {
     const { user } = useAuth()
@@ -20,7 +21,7 @@ export default function InstructorStudentList() {
     setError('')
     try {
       const data = await getInstructorStudentList(instructorId)
-      setRows(Array.isArray(data) ? data : [])
+      setRows(sortStudentsByName(data))
     } catch (err) {
       setError(err.message || 'Failed to load student list')
       setRows([])
@@ -37,7 +38,7 @@ export default function InstructorStudentList() {
   const courseLabel = (row) =>
     row.subject_code ? `${row.subject_code}: ${(row.subject_name || '').trim()}`.trim() : row.subject_name || '-'
 
-  const filtered = rows.filter((row) => {
+  const filtered = sortStudentsByName(rows.filter((row) => {
     if (courseFilter !== 'all' && row.subject_code !== courseFilter) return false
 
     const q = search.trim().toLowerCase()
@@ -45,7 +46,7 @@ export default function InstructorStudentList() {
     if (q && !searchTarget.includes(q)) return false
 
     return true
-  })
+  }))
 
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden">

@@ -6,6 +6,7 @@ import ScrollTableContainer from '../components/ScrollTableContainer'
 import InlineToast from '../components/InlineToast'
 import { useAuth } from '../context/AuthContext'
 import { getClass, getClassGrades, uploadClassFiles } from '../api'
+import { sortStudentsByName } from '../lib/studentSort'
 
 const MIDTERM_COMPONENT_COLUMNS = [
   { key: 'class_standing', label: 'CS (30%) Midterm' },
@@ -13,6 +14,11 @@ const MIDTERM_COMPONENT_COLUMNS = [
   { key: 'major_output', label: 'MO (40%) Midterm' },
   { key: 'midterm_grade', label: 'Midterm Grade (MTG)', computed: true },
 ]
+
+const TOPICS_STUDENT_NO_WIDTH = 160
+const TOPICS_NAME_WIDTH = 330
+const TOPICS_SCORE_WIDTH = 180
+const TOPICS_PINNED_WIDTH = TOPICS_STUDENT_NO_WIDTH + TOPICS_NAME_WIDTH
 
 function formatScoreValue(value) {
   if (value === null || value === undefined || value === '') return '-'
@@ -53,6 +59,13 @@ function getScoreActivityLabel(scoreKey) {
     .replace(/\b\w/g, (match) => match.toUpperCase()) || 'Untitled activity'
 }
 
+function shouldHideTopicsToWatchColumn(component, activityTitle) {
+  return (
+    String(component || '').trim().toLowerCase() === 'laboratory' &&
+    String(activityTitle || '').trim().toLowerCase() === 'equivalent'
+  )
+}
+
 function getTopicsToWatchGroups(student) {
   const grouped = new Map()
   const scores = student?.scores || {}
@@ -63,10 +76,13 @@ function getTopicsToWatchGroups(student) {
     const numericValue = Number(rawValue)
     if (Number.isNaN(numericValue)) continue
 
+    const activityTitle = getScoreActivityLabel(scoreKey)
+    if (shouldHideTopicsToWatchColumn(component, activityTitle)) continue
+
     if (!grouped.has(component)) grouped.set(component, [])
     grouped.get(component).push({
       key: scoreKey,
-      title: getScoreActivityLabel(scoreKey),
+      title: activityTitle,
       score: numericValue,
     })
   }
@@ -100,7 +116,7 @@ function buildTopicsToWatchColumns(students) {
 }
 
 function getTopicsGroupClasses(index, total) {
-  const base = 'px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-700 bg-slate-50 border-b-2 border-slate-300'
+  const base = 'sticky top-0 z-20 h-10 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-700 bg-slate-50 border-b-2 border-slate-300'
   const edges = [
     index === 0 ? 'border-l border-slate-300' : 'border-l border-slate-200',
     'border-r border-slate-300',
@@ -114,7 +130,7 @@ function getTopicsSubheaderClasses(isGroupStart, isGroupEnd) {
     isGroupStart ? 'border-l border-slate-200' : '',
     isGroupEnd ? 'border-r border-slate-200' : '',
   ]
-  return `px-4 py-2.5 text-left text-xs font-semibold text-slate-600 bg-white border-b border-slate-200 whitespace-nowrap ${edges.join(' ')}`
+  return `sticky top-10 z-20 h-10 px-4 py-2.5 text-left text-xs font-semibold text-slate-600 bg-white border-b border-slate-200 whitespace-nowrap ${edges.join(' ')}`
 }
 
 function getTopicsCellClasses(isGroupStart, isGroupEnd) {
@@ -122,7 +138,7 @@ function getTopicsCellClasses(isGroupStart, isGroupEnd) {
     isGroupStart ? 'border-l border-slate-200' : '',
     isGroupEnd ? 'border-r border-slate-200' : '',
   ]
-  return `px-4 py-3 text-center text-slate-700 whitespace-nowrap ${edges.join(' ')}`
+  return `px-4 py-3 text-center text-slate-700 whitespace-nowrap border-b border-slate-200 ${edges.join(' ')}`
 }
 
 function formatAutoReferralUploadMessage(students) {
@@ -132,8 +148,8 @@ function formatAutoReferralUploadMessage(students) {
     .filter(([, value]) => Boolean(value))
     .map(([key]) => {
       if (key === 'on_probation_status') return 'on probation status'
-      if (key === 'grade_2_5_or_below') return 'midterm grade is 2.50 or below'
-      if (key === 'gwa_2_5_or_below') return 'GWA is 2.5 or below'
+      if (key === 'grade_2_5_or_below') return 'midterm grade is 2.50 down to 5.00'
+      if (key === 'gwa_2_5_or_below') return 'GWA is 2.50 down to 5.00'
       if (key === 'low_midterm_performance') return 'low midterm academic performance'
       if (key === 'difficulty_catching_up') return 'difficulty with catching up instructions'
       return key
@@ -260,8 +276,13 @@ export default function ClassGrades() {
     }
   }
 
-  const students = useMemo(() => gradesData?.students || [], [gradesData?.students])
+  const students = useMemo(() => sortStudentsByName(gradesData?.students), [gradesData?.students])
   const topicsToWatchColumns = useMemo(() => buildTopicsToWatchColumns(students), [students])
+  const topicsScoreColumnCount = useMemo(
+    () => topicsToWatchColumns.reduce((total, group) => total + Math.max(group.columns.length, 1), 0),
+    [topicsToWatchColumns],
+  )
+  const topicsTableWidth = TOPICS_PINNED_WIDTH + (topicsScoreColumnCount * TOPICS_SCORE_WIDTH)
 
   const visibleColumns = useMemo(
     () =>
@@ -443,17 +464,30 @@ export default function ClassGrades() {
                   </tbody>
                 </table>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-max text-sm border-collapse">
-                    <thead className="sticky top-0 z-20 bg-white">
+                <>
+                  <table
+                    className="table-fixed text-sm border-separate border-spacing-0"
+                    style={{ minWidth: `${topicsTableWidth}px`, width: `${topicsTableWidth}px` }}
+                  >
+                    <colgroup>
+                      <col style={{ width: `${TOPICS_STUDENT_NO_WIDTH}px` }} />
+                      <col style={{ width: `${TOPICS_NAME_WIDTH}px` }} />
+                      {topicsToWatchColumns.flatMap((group) =>
+                        group.columns.length > 0
+                          ? group.columns.map((column) => <col key={column.key} style={{ width: `${TOPICS_SCORE_WIDTH}px` }} />)
+                          : [<col key={`${group.label}-empty-col`} style={{ width: `${TOPICS_SCORE_WIDTH}px` }} />],
+                      )}
+                    </colgroup>
+                    <thead className="bg-white">
                       <tr>
-                        <th rowSpan="2" className="sticky left-0 z-30 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-700 bg-slate-50 border-b-2 border-slate-300 border-r border-slate-200 whitespace-nowrap align-middle min-w-[120px]">Student No.</th>
-                        <th rowSpan="2" className="sticky left-[120px] z-30 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-700 bg-slate-50 border-b-2 border-slate-300 border-r border-slate-200 whitespace-nowrap align-middle min-w-[200px]">Name</th>
+                        <th rowSpan="2" className="sticky left-0 top-0 z-40 h-20 px-4 py-3 text-left align-middle text-xs font-bold uppercase tracking-wider text-slate-700 bg-slate-50 border-b-2 border-slate-300 border-r border-slate-200 whitespace-nowrap">Student No.</th>
+                        <th rowSpan="2" className="sticky top-0 z-40 h-20 px-4 py-3 text-left align-middle text-xs font-bold uppercase tracking-wider text-slate-700 bg-slate-50 border-b-2 border-slate-300 border-r border-slate-200 whitespace-nowrap" style={{ left: `${TOPICS_STUDENT_NO_WIDTH}px` }}>Name</th>
                         {topicsToWatchColumns.map((group, index) => (
                           <th
                             key={group.label}
                             colSpan={Math.max(group.columns.length, 1)}
                             className={getTopicsGroupClasses(index, topicsToWatchColumns.length)}
+                            style={{ width: `${Math.max(group.columns.length, 1) * TOPICS_SCORE_WIDTH}px` }}
                           >
                             {group.label}
                           </th>
@@ -466,6 +500,7 @@ export default function ClassGrades() {
                               <th
                                 key={column.key}
                                 className={getTopicsSubheaderClasses(columnIndex === 0, columnIndex === group.columns.length - 1)}
+                                style={{ width: `${TOPICS_SCORE_WIDTH}px` }}
                               >
                                 {column.title}
                               </th>
@@ -474,6 +509,7 @@ export default function ClassGrades() {
                             <th
                               key={`${group.label}-empty`}
                               className={getTopicsSubheaderClasses(true, true)}
+                              style={{ width: `${TOPICS_SCORE_WIDTH}px` }}
                             >
                               No activities
                             </th>
@@ -482,16 +518,20 @@ export default function ClassGrades() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
-                      {students.map((student, index) => (
-                        <tr key={student.id} className={index % 2 === 0 ? 'bg-white hover:bg-slate-50' : 'bg-slate-50/50 hover:bg-slate-100'}>
-                          <td className="sticky left-0 z-10 px-4 py-3 font-mono text-sm text-slate-700 whitespace-nowrap border-r border-slate-200 bg-inherit min-w-[120px]">{student.id_number || '-'}</td>
-                          <td className="sticky left-[120px] z-10 px-4 py-3 font-medium text-sm text-slate-900 whitespace-nowrap border-r border-slate-200 bg-inherit min-w-[200px]">{student.name || student.email || '-'}</td>
+                      {students.map((student, index) => {
+                        const rowBg = index % 2 === 0 ? 'bg-white' : 'bg-slate-50'
+                        const rowHover = index % 2 === 0 ? 'hover:bg-slate-50' : 'hover:bg-slate-100'
+                        return (
+                        <tr key={student.id} className={`${rowBg} ${rowHover}`}>
+                          <td className={`sticky left-0 z-30 px-4 py-3 font-mono text-sm text-slate-700 whitespace-nowrap border-r border-b border-slate-200 ${rowBg}`}>{student.id_number || '-'}</td>
+                          <td className={`sticky z-30 px-4 py-3 font-medium text-sm text-slate-900 whitespace-nowrap border-r border-b border-slate-200 ${rowBg} shadow-[8px_0_14px_-14px_rgba(15,23,42,0.45)]`} style={{ left: `${TOPICS_STUDENT_NO_WIDTH}px` }}>{student.name || student.email || '-'}</td>
                           {topicsToWatchColumns.flatMap((group) =>
                             group.columns.length > 0 ? (
                               group.columns.map((column, columnIndex) => (
                                 <td
                                   key={`${student.id}-${column.key}`}
                                   className={`${getTopicsCellClasses(columnIndex === 0, columnIndex === group.columns.length - 1)}`}
+                                  style={{ width: `${TOPICS_SCORE_WIDTH}px` }}
                                 >
                                   {student.scores?.[column.key] === null || student.scores?.[column.key] === undefined || student.scores?.[column.key] === '' ? (
                                     <span className="text-slate-400">-</span>
@@ -512,16 +552,18 @@ export default function ClassGrades() {
                               <td
                                 key={`${student.id}-${group.label}-empty`}
                                 className={`${getTopicsCellClasses(true, true)} text-slate-400`}
+                                style={{ width: `${TOPICS_SCORE_WIDTH}px` }}
                               >
                                 -
                               </td>
                             ),
                           )}
                         </tr>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
-                </div>
+                </>
               )}
             </ScrollTableContainer>
             </div>

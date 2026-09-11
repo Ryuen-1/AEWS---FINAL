@@ -4,6 +4,9 @@ students at risk, department stats, instructors list, trends, and needs-assessme
 """
 from datetime import datetime, timezone
 import copy
+from pathlib import Path
+import subprocess
+import sys
 
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Depends
@@ -11,7 +14,7 @@ from pymongo.errors import ServerSelectionTimeoutError
 
 from app.activity_log_utils import create_activity_log
 from app.authz import get_current_actor
-from app.ai_model import load_model_metrics
+from app.ai_model import get_student_risk_model, load_model_metrics
 from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS
 from app.email_sender import send_account_decision_email
 from app.notification_utils import create_notification
@@ -48,7 +51,7 @@ NEEDS_ASSESSMENT_CORE_FIELDS = [
     ("current_academic_standing", "Current Academic Standing", "", [
         {"id": "on_probationary_status", "name": "on_probationary_status", "label": "On Probationary Status", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 1, "active": True, "locked": True},
         {"id": "grade_2_5_or_below", "name": "grade_2_5_or_below", "label": "At least one subject has a grade of 2.5", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 2, "active": True, "locked": True},
-        {"id": "gwa_2_5_or_below", "name": "gwa_2_5_or_below", "label": "GWA is 2.5 lower or below", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 3, "active": True, "locked": True},
+        {"id": "gwa_2_5_or_below", "name": "gwa_2_5_or_below", "label": "GWA is 2.50 down to 5.00", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 3, "active": True, "locked": True},
         {"id": "low_midterm_academic_performance", "name": "low_midterm_academic_performance", "label": "Low midterm academic performance", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 4, "active": True, "locked": True},
         {"id": "difficulty_catching_up", "name": "difficulty_catching_up", "label": "Difficulty with catching up instructions", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 5, "active": True, "locked": True},
     ]),
@@ -78,6 +81,20 @@ NEEDS_ASSESSMENT_CORE_FIELDS = [
         {"id": "notes", "name": "notes", "label": "Additional notes", "type": "textarea", "required": False, "placeholder": "Share any details you want AMU staff to know.", "help_text": "", "options": [], "order": 1, "active": True, "locked": True},
     ]),
 ]
+
+
+def _student_name_sort_key(row: dict) -> tuple[str, str]:
+    name = str(
+        row.get("student_name")
+        or row.get("name")
+        or row.get("student_email")
+        or row.get("email")
+        or row.get("student_id")
+        or row.get("id_number")
+        or ""
+    ).strip().lower()
+    identifier = str(row.get("student_id") or row.get("id_number") or row.get("id") or "").strip().lower()
+    return (name, identifier)
 
 
 def _build_default_needs_assessment_form_config() -> dict:
@@ -383,7 +400,7 @@ def list_students_at_risk(department: str | None = None):
                 "instructor": inst_name,
                 "class_id": doc["class_id"],
             })
-        return rows
+        return sorted(rows, key=_student_name_sort_key)
     except ServerSelectionTimeoutError:
         return []
 
@@ -608,6 +625,11 @@ def get_analytics_accuracy():
                 "bestModel": item.get("best_model") or fallback_payload.get("selected_model"),
                 "allModels": all_models,
                 "isSnapshot": bool(item.get("is_snapshot")),
+                "trainingRows": item.get("training_rows") or fallback_payload.get("training_rows"),
+                "classDistribution": item.get("class_distribution") or fallback_payload.get("class_distribution") or {},
+                "datasetSources": item.get("dataset_sources") or fallback_payload.get("dataset_sources") or {},
+                "validatedAt": item.get("dataset_validated_at") or fallback_payload.get("validated_at"),
+                "labelRule": fallback_payload.get("label_rule"),
             }
 
         if isinstance(history, list):
@@ -657,30 +679,75 @@ def get_analytics_accuracy():
 
 @router.post("/analytics/train-model")
 def train_model(actor: dict = Depends(require_admin_role)):
-    """Train the AI model with current enrollment data."""
+    """Validate the local training datasets, train the AI model, and return fresh metrics."""
     try:
-        from app.ai_model import get_student_risk_model, load_model_metrics
-        from datetime import datetime, timezone
-        
-        db = get_db()
-        
-        # Check if there's enough data to train
-        enrollments = list(db.enrollments.find({}))
-        if len(enrollments) < 10:
-            return {
-                "message": "Not enough data to train model. Need at least 10 student records.",
-                "status": "insufficient_data"
-            }
-        
-        # For now, return a success message since actual model training is complex
-        # This is a placeholder for the actual training logic
+        backend_dir = Path(__file__).resolve().parents[2]
+        project_dir = backend_dir.parent
+        validation_script = backend_dir / "scripts" / "validate_training_datasets.py"
+        training_script = backend_dir / "scripts" / "train_student_risk_model.py"
+
+        validation_result = subprocess.run(
+            [sys.executable, str(validation_script)],
+            cwd=str(project_dir),
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if validation_result.returncode != 0:
+            raise HTTPException(
+                status_code=400,
+                detail=validation_result.stderr.strip()
+                or validation_result.stdout.strip()
+                or "Dataset validation failed.",
+            )
+
+        training_result = subprocess.run(
+            [
+                sys.executable,
+                str(training_script),
+                "--profile",
+                "midterm_attendance_needs_with_components",
+                "--save-model",
+                "xgboost",
+            ],
+            cwd=str(project_dir),
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        if training_result.returncode != 0:
+            raise HTTPException(
+                status_code=500,
+                detail=training_result.stderr.strip()
+                or training_result.stdout.strip()
+                or "Model training failed.",
+            )
+
+        get_student_risk_model.cache_clear()
+        payload = load_model_metrics() or {}
+        history = payload.get("history") if isinstance(payload.get("history"), list) else []
+        latest = history[-1] if history else {}
+
         return {
-            "message": "Model training endpoint is a placeholder. Actual ML training requires a dedicated training pipeline.",
-            "status": "not_implemented",
-            "records_available": len(enrollments)
+            "message": "Model training completed successfully.",
+            "status": "trained",
+            "selected_profile": payload.get("selected_profile"),
+            "selected_model": payload.get("selected_model"),
+            "trained_at": payload.get("trained_at"),
+            "validated_at": payload.get("validated_at"),
+            "training_rows": payload.get("training_rows"),
+            "class_distribution": payload.get("class_distribution"),
+            "dataset_sources": payload.get("dataset_sources"),
+            "holdout_accuracy": latest.get("holdout_accuracy"),
+            "cv_mean_accuracy": latest.get("cv_mean_accuracy"),
+            "stdout_tail": "\n".join(training_result.stdout.splitlines()[-12:]),
         }
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Model training timed out. Please try again from the server terminal.")
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -752,11 +819,14 @@ def get_general_report_data():
             
             # Get student email from enrollment or look up from students collection
             student_email = doc.get("student_email", "")
+            student_doc = None
             if not student_email and doc.get("student_id"):
                 # Try to find student by student_id
                 student_doc = db.students.find_one({"id_number": doc.get("student_id")})
                 if student_doc:
                     student_email = student_doc.get("email", "")
+            elif student_email:
+                student_doc = db.students.find_one({"email": student_email})
             
             # Determine prediction label - check multiple fields
             risk_source = doc.get("risk_source")
@@ -776,6 +846,8 @@ def get_general_report_data():
             
             at_risk_rows.append({
                 "student_email": student_email,
+                "student_name": (student_doc or {}).get("name") or doc.get("student_name"),
+                "student_id": doc.get("student_id"),
                 "prediction_label": outcome,
                 "department": dept,
                 "course": course,
@@ -815,7 +887,7 @@ def get_general_report_data():
                 "students_at_risk": at_risk_count,
                 "referred_to_amu": at_risk_count,
             },
-            "at_risk_rows": at_risk_rows,
+            "at_risk_rows": sorted(at_risk_rows, key=_student_name_sort_key),
             "department_performance": department_performance,
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }

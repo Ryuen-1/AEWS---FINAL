@@ -3,10 +3,13 @@ from fastapi import APIRouter, Depends, HTTPException, Body
 from pymongo import ReturnDocument
 from pymongo.errors import ServerSelectionTimeoutError
 import bcrypt
+import secrets
+from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel
 
 from app.authz import get_current_actor
 from app.database import get_db
+from app.email_sender import send_password_change_code
 from app.schemas import StudentCreate, StudentResponse, StudentUpdate
 
 router = APIRouter()
@@ -16,6 +19,17 @@ public_router = APIRouter()
 class StudentLoginRequest(BaseModel):
     student_id: str
     password: str
+
+
+class StudentPasswordCodeRequest(BaseModel):
+    student_id: str
+
+
+class StudentChangePasswordRequest(BaseModel):
+    student_id: str
+    current_password: str
+    new_password: str
+    verification_code: str
 
 
 def _doc_to_response(doc) -> dict:
@@ -29,11 +43,45 @@ def _doc_to_response(doc) -> dict:
         raise HTTPException(status_code=500, detail=f"Error converting document to response: {str(e)}")
 
 
+def _student_name_sort_key(row: dict) -> tuple[str, str]:
+    name = str(row.get("name") or row.get("student_name") or row.get("email") or row.get("id_number") or "").strip().lower()
+    identifier = str(row.get("id_number") or row.get("student_id") or row.get("id") or "").strip().lower()
+    return (name, identifier)
+
+
 def _normalize_student_identifier(value: str | None) -> str:
     raw = str(value or "").strip()
     if raw.endswith(".0") and raw[:-2].isdigit():
         return raw[:-2]
     return raw
+
+
+def _find_student_by_identifier(db, student_id: str):
+    student_ident = _normalize_student_identifier(student_id)
+    if not student_ident:
+        return None
+    return db.students.find_one(
+        {
+            "$or": [
+                {"id_number": student_ident},
+                {"student_id": student_ident},
+                {"email": student_ident.lower()},
+            ]
+        }
+    )
+
+
+def _hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def _check_password(password: str, password_hash) -> bool:
+    try:
+        if isinstance(password_hash, str):
+            password_hash = password_hash.encode("utf-8")
+        return bcrypt.checkpw(password.encode("utf-8"), password_hash)
+    except Exception:
+        return False
 
 
 def _to_iso(value):
@@ -160,6 +208,85 @@ def update_public_student_profile(body: dict):
         "created_at": updated_doc.get("created_at"),
         "password_changed_at": updated_doc.get("password_changed_at"),
     }
+
+
+@public_router.post("/students/password-change-code")
+def request_student_password_change_code(body: StudentPasswordCodeRequest):
+    """Send a short-lived verification code to the student's registered email before password change."""
+    db = get_db()
+    student_doc = _find_student_by_identifier(db, body.student_id)
+    if not student_doc:
+        raise HTTPException(status_code=404, detail="Student not found")
+    if student_doc.get("email_verified") is not True:
+        raise HTTPException(status_code=403, detail="Your student email must be verified before changing your password.")
+    email = (student_doc.get("email") or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="No email address is connected to this student account.")
+
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    expires = datetime.now(timezone.utc) + timedelta(minutes=10)
+    db.students.update_one(
+        {"_id": student_doc["_id"]},
+        {
+            "$set": {
+                "password_change": {
+                    "code": code,
+                    "expires": expires,
+                    "requested_at": datetime.now(timezone.utc),
+                }
+            }
+        },
+    )
+    sent, error = send_password_change_code(email, code, student_doc.get("name") or "Student")
+    if not sent:
+        raise HTTPException(status_code=503, detail=error or "Unable to send verification code.")
+    return {"message": "Verification code sent to your registered email."}
+
+
+@public_router.post("/students/change-password")
+def change_public_student_password(body: StudentChangePasswordRequest):
+    """Change student password after current-password and email-code verification."""
+    db = get_db()
+    student_doc = _find_student_by_identifier(db, body.student_id)
+    if not student_doc:
+        raise HTTPException(status_code=404, detail="Student not found")
+    if student_doc.get("email_verified") is not True:
+        raise HTTPException(status_code=403, detail="Your student email must be verified before changing your password.")
+
+    password_hash = student_doc.get("password_hash")
+    if not password_hash or not _check_password(body.current_password, password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect.")
+
+    new_password = (body.new_password or "").strip()
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters.")
+    if body.current_password == new_password:
+        raise HTTPException(status_code=400, detail="New password must be different from the current password.")
+
+    password_change = student_doc.get("password_change") or {}
+    saved_code = str(password_change.get("code") or "").strip()
+    submitted_code = str(body.verification_code or "").strip()
+    expires = password_change.get("expires")
+    now = datetime.now(timezone.utc)
+    if not saved_code or not submitted_code or saved_code != submitted_code:
+        raise HTTPException(status_code=400, detail="Verification code is incorrect.")
+    if expires:
+        if getattr(expires, "tzinfo", None) is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if expires < now:
+            raise HTTPException(status_code=400, detail="Verification code has expired. Request a new code.")
+
+    db.students.update_one(
+        {"_id": student_doc["_id"]},
+        {
+            "$set": {
+                "password_hash": _hash_password(new_password),
+                "password_changed_at": now,
+            },
+            "$unset": {"password_change": ""},
+        },
+    )
+    return {"message": "Password changed successfully."}
 
 
 @public_router.get("/students/dashboard")
@@ -291,24 +418,31 @@ def list_students(search: str | None = None, actor: dict = Depends(get_current_a
             {"email": {"$regex": search, "$options": "i"}},
         ]
     cursor = db.students.find(q)
-    return [_doc_to_response(d) for d in cursor]
+    return sorted([_doc_to_response(d) for d in cursor], key=_student_name_sort_key)
 
 
 @router.get("/referred")
 def list_referred_students(search: str | None = None, actor: dict = Depends(get_current_actor)):
-    """List student accounts that were created through referrals for admin view."""
+    """List verified student accounts with login credentials for admin view."""
     if actor["role"] != "admin":
         raise HTTPException(status_code=403, detail="Forbidden")
     db = get_db()
-    q = {"auto_created": True}  # Only show auto-created accounts from referrals
+    q = {
+        "email_verified": True,
+        "password_hash": {"$exists": True, "$nin": ["", None]},
+    }
     if search:
-        q["$or"] = [
-            {"name": {"$regex": search, "$options": "i"}},
-            {"email": {"$regex": search, "$options": "i"}},
-            {"id_number": {"$regex": search, "$options": "i"}},
+        q["$and"] = [
+            {
+                "$or": [
+                    {"name": {"$regex": search, "$options": "i"}},
+                    {"email": {"$regex": search, "$options": "i"}},
+                    {"id_number": {"$regex": search, "$options": "i"}},
+                ]
+            }
         ]
     cursor = db.students.find(q)
-    return [_doc_to_response(d) for d in cursor]
+    return sorted([_doc_to_response(d) for d in cursor], key=_student_name_sort_key)
 
 
 @router.get("/{student_id}")

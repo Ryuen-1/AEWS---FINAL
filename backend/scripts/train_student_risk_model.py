@@ -393,6 +393,55 @@ def load_training_frame(
     return renamed, FEATURE_PROFILES["midterm_attendance_needs_with_components"]
 
 
+def build_dataset_audit_payload(
+    training_df: pd.DataFrame,
+    *,
+    attendance_path: Path,
+    grades_path: Path,
+    needs_path: Path,
+    combine_all: bool = False,
+    validated_at: str | None = None,
+) -> dict[str, Any]:
+    """Return traceability details for the datasets used by training."""
+    timestamp = validated_at or datetime.now(timezone.utc).isoformat()
+    dataset_paths = {
+        "attendance": attendance_path,
+        "grades": grades_path,
+        "needs_assessment": needs_path,
+    }
+    class_counts = training_df["risk_label"].value_counts().sort_index().to_dict()
+    class_distribution = {
+        CLASS_NAMES[int(label)] if int(label) < len(CLASS_NAMES) else str(label): int(count)
+        for label, count in class_counts.items()
+    }
+
+    return {
+        "validated_at": timestamp,
+        "combine_all": bool(combine_all),
+        "dataset_sources": {
+            name: {
+                "filename": path.name,
+                "path": str(path),
+                "exists": path.exists(),
+                "size_bytes": path.stat().st_size if path.exists() else None,
+                "last_modified": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat()
+                if path.exists()
+                else None,
+            }
+            for name, path in dataset_paths.items()
+        },
+        "training_rows": int(len(training_df)),
+        "training_columns": list(training_df.columns),
+        "missing_values": {column: int(count) for column, count in training_df.isna().sum().to_dict().items()},
+        "class_distribution": class_distribution,
+        "risk_label_mapping": {
+            "0": "Low Risk",
+            "1": "High Risk",
+        },
+        "label_rule": "BukSU grade scale: final grades from 1.00 to 2.25 are Low Risk; grades from 2.50 down to 5.00 are High Risk.",
+    }
+
+
 def _clean_feature_matrix(
     df: pd.DataFrame,
     feature_columns: list[str],
@@ -699,6 +748,14 @@ def main() -> None:
         )
 
     trained_at = datetime.now(timezone.utc).isoformat()
+    dataset_audit = build_dataset_audit_payload(
+        training_df,
+        attendance_path=args.attendance,
+        grades_path=args.grades,
+        needs_path=args.needs,
+        combine_all=args.combine_all,
+        validated_at=trained_at,
+    )
     profile_metrics = {
         profile_name: {
             "best_model": result["best_model_name"],
@@ -718,6 +775,7 @@ def main() -> None:
         "feature_columns_by_profile": bundled_feature_columns,
         "selected_model_names": bundled_model_names,
         "profiles": profile_metrics,
+        **dataset_audit,
         "history": [],
     }
 
@@ -735,6 +793,9 @@ def main() -> None:
         "trained_at": trained_at,
         "profile": args.profile,
         "model_name": selected_model_name,
+        "training_rows": dataset_audit["training_rows"],
+        "class_distribution": dataset_audit["class_distribution"],
+        "dataset_sources": dataset_audit["dataset_sources"],
         "all_models": {
             model_name: model_result["metrics"]
             for model_name, model_result in selected_profile_result["models"].items()

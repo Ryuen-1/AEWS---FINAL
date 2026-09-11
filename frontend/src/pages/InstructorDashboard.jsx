@@ -313,6 +313,7 @@ export default function InstructorDashboard() {
           <>
             <DashboardPageHeader
               welcome
+              heroIcon={BookOpen}
               eyebrow="Teaching workspace"
               title={`Welcome back${user?.name ? `, ${user.name}` : ''}.`}
               description="Your classes, student records, and teaching tasks in one place. Open a class to review grades and attendance, or get started with a new class list."

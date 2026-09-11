@@ -16,8 +16,8 @@ function buildDisplayReasons(referral) {
 
   const midtermGrade = Number(referral?.midterm_grade)
   if (!Number.isNaN(midtermGrade) && midtermGrade > 0) {
-    if ((midtermGrade <= 5 && midtermGrade <= 2.5) || (midtermGrade > 5 && midtermGrade <= 75)) {
-      addReason('Midterm grade is 2.50 or below')
+    if ((midtermGrade <= 5 && midtermGrade >= 2.5) || (midtermGrade > 5 && midtermGrade <= 75)) {
+      addReason('Midterm grade is 2.50 down to 5.00')
     }
   }
 
@@ -27,7 +27,7 @@ function buildDisplayReasons(referral) {
   }
 
   if (referral?.gpa != null && Number(referral.gpa) >= 2.5) {
-    addReason('GWA is 2.5 or below')
+    addReason('GWA is 2.50 down to 5.00')
   }
 
   return reasons

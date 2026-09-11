@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { GraduationCap, Lock, LogIn, Eye, EyeOff } from 'lucide-react'
 import { API_BASE } from '../api'
 import { resetIdleSession } from '../lib/idleSession'
@@ -124,6 +124,14 @@ export default function StudentLogin() {
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
+              </div>
+              <div className="mt-2 text-right">
+                <Link
+                  to="/forgot-password?role=student"
+                  className="text-sm font-semibold text-blue-600 transition hover:text-blue-700"
+                >
+                  Forgot password?
+                </Link>
               </div>
             </div>
 

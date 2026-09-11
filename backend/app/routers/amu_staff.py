@@ -53,6 +53,19 @@ def _normalize_referral_value(value) -> str:
     return text
 
 
+def _student_name_sort_key(row: dict) -> tuple[str, str]:
+    name = _normalize_referral_value(
+        row.get("student_name")
+        or row.get("name")
+        or row.get("student_email")
+        or row.get("email")
+        or row.get("student_id")
+        or row.get("id_number")
+    ).lower()
+    identifier = _normalize_referral_value(row.get("student_id") or row.get("id_number") or row.get("id")).lower()
+    return (name, identifier)
+
+
 def _referral_identifier(doc: dict) -> str:
     student_email = _normalize_referral_value(doc.get("student_email")).lower()
     if student_email:
@@ -145,8 +158,8 @@ def _build_referral_reasons(doc: dict) -> list[str]:
     if isinstance(referral_reasons_dict, dict):
         support_map = {
             "on_probation_status": "On probation status",
-            "grade_2_5_or_below": "Midterm grade is 2.50 or below",
-            "gwa_2_5_or_below": "GWA is 2.5 or below",
+            "grade_2_5_or_below": "Midterm grade is 2.50 down to 5.00",
+            "gwa_2_5_or_below": "GWA is 2.50 down to 5.00",
             "low_midterm_performance": "Low midterm academic performance",
             "difficulty_catching_up": "Difficulty with catching up instructions",
             "financial_difficulties": "Financial difficulties",
@@ -163,8 +176,8 @@ def _build_referral_reasons(doc: dict) -> list[str]:
     if not reasons:
         individual_map = {
             "on_probation_status": "On probation status",
-            "has_subject_grade_2_5": "Midterm grade is 2.50 or below",
-            "gwa_2_5_or_below": "GWA is 2.5 or below",
+            "has_subject_grade_2_5": "Midterm grade is 2.50 down to 5.00",
+            "gwa_2_5_or_below": "GWA is 2.50 down to 5.00",
             "low_midterm_academic_performance": "Low midterm academic performance",
             "difficulty_catching_up": "Difficulty with catching up instructions",
             "financial_difficulties": "Financial difficulties",
@@ -214,7 +227,7 @@ def list_referrals(risk: str | None = None, search: str | None = None, actor: di
     try:
         db = get_db()
         q = {"flagged_for_mentoring": True, "assigned_amu_staff_id": actor["id"]}
-        if risk and risk in ("High", "Medium", "Low"):
+        if risk and risk in ("High", "Low"):
             q["risk"] = risk
         cursor = db.enrollments.find(q).sort("referred_at", -1)
         search_lower = (search or "").strip().lower()
@@ -298,7 +311,7 @@ def list_referrals(risk: str | None = None, search: str | None = None, actor: di
                 "referring_class_code": doc.get("referring_class_code"),
                 "referring_class_name": doc.get("referring_class_name"),
             })
-        return out
+        return sorted(out, key=_student_name_sort_key)
     except HTTPException:
         raise
     except ServerSelectionTimeoutError:

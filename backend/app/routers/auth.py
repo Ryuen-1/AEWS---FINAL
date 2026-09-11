@@ -33,7 +33,7 @@ def _validate_email_format(email: str) -> str:
 
 from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS
 from app.authz import normalize_role
-from app.email_sender import is_smtp_configured, send_password_reset_email, send_test_email, send_verification_email
+from app.email_sender import is_smtp_configured, send_password_change_code, send_password_reset_email, send_test_email, send_verification_email
 from app.notification_utils import create_notification
 from app.schemas import ChangePasswordRequest, ForgotPasswordRequest, LoginRequest, ResetPasswordRequest, SignUpRequest
 
@@ -270,23 +270,33 @@ def forgot_password(body: ForgotPasswordRequest):
         expires = now + timedelta(hours=1)
         token = secrets.token_urlsafe(32)
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
-        reset_link = f"{frontend_url}/reset-password?token={token}"
+        requested_role = body.role
+        collections_to_search = [get_collection_for_role(requested_role)] if requested_role else [*ROLE_COLLECTIONS, "students"]
 
-        for coll_name in ROLE_COLLECTIONS:
+        for coll_name in collections_to_search:
             coll = db[coll_name]
             doc = coll.find_one({"email": {"$regex": f"^{re.escape(email_lower)}$", "$options": "i"}})
             if not doc:
                 continue
             if doc.get("email_verified") is not True:
                 break  # don't send reset for unverified
+            role_for_link = doc.get("role") or ("student" if coll_name == "students" else "")
+            reset_params = {"token": token}
+            if role_for_link:
+                reset_params["role"] = role_for_link
+            reset_link = f"{frontend_url}/reset-password?{urllib.parse.urlencode(reset_params)}"
             coll.update_one(
                 {"_id": doc["_id"]},
                 {"$set": {"password_reset_token": token, "password_reset_expires": expires}},
             )
-            sent, _ = send_password_reset_email(body.email, reset_link, doc.get("name", "User"))
+            sent, send_error = send_password_reset_email(doc.get("email") or body.email, reset_link, doc.get("name", "User"))
             if not sent:
                 import logging
-                logging.getLogger(__name__).warning("Password reset email not sent to %s", body.email)
+                logging.getLogger(__name__).warning(
+                    "Password reset email not sent to %s: %s",
+                    doc.get("email") or body.email,
+                    send_error or "unknown error",
+                )
             break
         return {"message": "If that email is registered, we sent a password reset link. Check your inbox and spam."}
     except ServerSelectionTimeoutError:
@@ -299,7 +309,7 @@ def reset_password(body: ResetPasswordRequest):
     try:
         db = get_db()
         now = datetime.now(timezone.utc)
-        for coll_name in ROLE_COLLECTIONS:
+        for coll_name in [*ROLE_COLLECTIONS, "students"]:
             coll = db[coll_name]
             doc = coll.find_one({"password_reset_token": body.token})
             if not doc:
@@ -317,8 +327,53 @@ def reset_password(body: ResetPasswordRequest):
                     "$unset": {"password_reset_token": "", "password_reset_expires": ""},
                 },
             )
-            return {"message": "Password updated. You can now sign in."}
+            return {
+                "message": "Password updated. You can now sign in.",
+                "role": doc.get("role") or ("student" if coll_name == "students" else None),
+            }
         raise HTTPException(status_code=400, detail="Invalid or expired reset link.")
+    except HTTPException:
+        raise
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+@router.post("/password-change-code")
+def request_password_change_code(actor: dict = Depends(get_current_actor)):
+    """Send a short-lived verification code to the signed-in user's email before password change."""
+    try:
+        db = get_db()
+        coll_name = get_collection_for_role(actor["role"])
+        coll = db[coll_name]
+        if not ObjectId.is_valid(actor["id"]):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        doc = coll.find_one({"_id": ObjectId(actor["id"])})
+        if not doc:
+            raise HTTPException(status_code=404, detail="User not found")
+        if doc.get("email_verified") is not True:
+            raise HTTPException(status_code=403, detail="Your email must be verified before changing your password.")
+        email = (doc.get("email") or "").strip().lower()
+        if not email:
+            raise HTTPException(status_code=400, detail="No email address is connected to this account.")
+
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        now = datetime.now(timezone.utc)
+        coll.update_one(
+            {"_id": doc["_id"]},
+            {
+                "$set": {
+                    "password_change": {
+                        "code": code,
+                        "expires": now + timedelta(minutes=10),
+                        "requested_at": now,
+                    }
+                }
+            },
+        )
+        sent, send_error = send_password_change_code(email, code, doc.get("name", "User"))
+        if not sent:
+            raise HTTPException(status_code=503, detail=send_error or "Unable to send verification code.")
+        return {"message": "Verification code sent to your registered email."}
     except HTTPException:
         raise
     except ServerSelectionTimeoutError:
@@ -340,13 +395,27 @@ def change_password(body: ChangePasswordRequest, actor: dict = Depends(get_curre
         password_hash = doc.get("password_hash")
         if not password_hash or not _check_password(body.current_password, password_hash):
             raise HTTPException(status_code=400, detail="Current password is incorrect")
+        if len(body.new_password.strip()) < 6:
+            raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
         if body.current_password == body.new_password:
             raise HTTPException(status_code=400, detail="New password must be different from the current password")
+        password_change = doc.get("password_change") or {}
+        saved_code = str(password_change.get("code") or "").strip()
+        submitted_code = str(body.verification_code or "").strip()
+        expires = password_change.get("expires")
+        now = datetime.now(timezone.utc)
+        if not saved_code or saved_code != submitted_code:
+            raise HTTPException(status_code=400, detail="Verification code is incorrect")
+        if expires:
+            if getattr(expires, "tzinfo", None) is None:
+                expires = expires.replace(tzinfo=timezone.utc)
+            if expires < now:
+                raise HTTPException(status_code=400, detail="Verification code has expired. Request a new code.")
         coll.update_one(
             {"_id": doc["_id"]},
             {
-                "$set": {"password_hash": _hash_password(body.new_password)},
-                "$unset": {"password_reset_token": "", "password_reset_expires": ""},
+                "$set": {"password_hash": _hash_password(body.new_password), "password_changed_at": now},
+                "$unset": {"password_reset_token": "", "password_reset_expires": "", "password_change": ""},
             },
         )
         create_activity_log(

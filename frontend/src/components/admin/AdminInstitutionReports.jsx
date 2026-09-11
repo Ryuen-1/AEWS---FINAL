@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { FileText, Download, Eye } from 'lucide-react'
 import { downloadAdminReport, previewAdminReport, getAdminGeneralReportData } from '../../api'
+import { sortStudentsByName } from '../../lib/studentSort'
 
 export default function AdminInstitutionReports() {
   const [downloading, setDownloading] = useState(false)
@@ -194,7 +195,7 @@ export default function AdminInstitutionReports() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {Array.isArray(reportData.at_risk_rows) && reportData.at_risk_rows.length > 0 ? (
-                        reportData.at_risk_rows.slice(0, 20).map((row, idx) => (
+                        sortStudentsByName(reportData.at_risk_rows).slice(0, 20).map((row, idx) => (
                           <tr key={idx} className="hover:bg-slate-50">
                             <td className="px-4 py-2 text-slate-700">{row.student_email || '-'}</td>
                             <td className="px-4 py-2 text-slate-700">{row.prediction_label || '-'}</td>

@@ -156,6 +156,7 @@ class LoginRequest(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
+    role: Optional[Literal["instructor", "admin", "amu-staff", "student"]] = None
 
 
 class ResetPasswordRequest(BaseModel):
@@ -166,6 +167,7 @@ class ResetPasswordRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     current_password: str = Field(..., min_length=1)
     new_password: str = Field(..., min_length=1)
+    verification_code: str = Field(..., min_length=6, max_length=6)
 
 
 # ----- Class (instructor courses) -----

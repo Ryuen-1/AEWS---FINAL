@@ -1,10 +1,11 @@
 import ScrollTableContainer from '../ScrollTableContainer'
+import { sortStudentsByName } from '../../lib/studentSort'
 
 export default function AttendanceTableView({ students, format = 'monthly' }) {
   const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
   const monthAbbrev = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-  const filteredStudents = Array.isArray(students) ? students : []
+  const filteredStudents = sortStudentsByName(students)
 
   const getAttendanceTone = (value) => {
     if (value === null || value === undefined) return 'text-slate-400'

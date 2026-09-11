@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { X, AlertCircle, CheckCircle } from 'lucide-react'
 import HeaderAwareOverlay from './HeaderAwareOverlay'
+import { sortStudentsByName } from '../lib/studentSort'
 
 export default function StudentPreviewModal({
   isOpen,
@@ -25,6 +26,7 @@ export default function StudentPreviewModal({
   }, [isOpen])
 
   if (!isOpen) return null
+  const sortedStudents = sortStudentsByName(students)
 
   return (
     <HeaderAwareOverlay
@@ -34,6 +36,7 @@ export default function StudentPreviewModal({
       className="flex items-center justify-center bg-black/50"
       panelClassName="max-w-xl"
       contentClassName="rounded-xl bg-white shadow-2xl"
+      fullScreen
     >
       <div className="bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-full">
         {/* Header */}
@@ -70,12 +73,12 @@ export default function StudentPreviewModal({
                 <p className="text-slate-600">Extracting student data...</p>
               </div>
             </div>
-          ) : students && students.length > 0 ? (
+          ) : sortedStudents.length > 0 ? (
             <div className="space-y-4">
               <div className="flex items-center gap-2 mb-3">
                 <CheckCircle className="w-4 h-4 text-green-600" />
                 <span className="text-sm font-medium text-slate-900">
-                  Found {students.length} student{students.length !== 1 ? 's' : ''}
+                  Found {sortedStudents.length} student{sortedStudents.length !== 1 ? 's' : ''}
                 </span>
               </div>
 
@@ -90,7 +93,7 @@ export default function StudentPreviewModal({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {students.map((student, idx) => (
+                    {sortedStudents.map((student, idx) => (
                       <tr key={idx} className="hover:bg-slate-50 transition-colors">
                         <td className="px-3 py-2.5 text-slate-600">{idx + 1}</td>
                         <td className="px-3 py-2.5 font-mono text-slate-700">{student.id}</td>
@@ -123,7 +126,7 @@ export default function StudentPreviewModal({
             type="button"
             onClick={onConfirm}
             className="px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium text-xs disabled:opacity-60"
-            disabled={isLoading || !students || students.length === 0}
+            disabled={isLoading || sortedStudents.length === 0}
           >
             Confirm & Upload
           </button>

@@ -19,6 +19,7 @@ import {
   listClasses,
   listClassStudents,
 } from '../api'
+import { sortStudentsByName } from '../lib/studentSort'
 
 const NEEDS_ASSESSMENT_FIELDS = [
   ['difficulty_understanding_lectures', 'Difficulty in understanding lectures'],
@@ -36,6 +37,17 @@ const NEEDS_ASSESSMENT_FIELDS = [
 function normalizeValue(value) {
   if (value === null || value === undefined) return ''
   return String(value).trim()
+}
+
+function getReportSectionCode(classInfo, students = []) {
+  const classSectionCode = normalizeValue(classInfo?.section_code)
+  if (classSectionCode) return classSectionCode
+
+  const rowWithSection = students.find((student) => normalizeValue(student?.section_code))
+  const rowSectionCode = normalizeValue(rowWithSection?.section_code)
+  if (rowSectionCode) return rowSectionCode
+
+  return normalizeValue(classInfo?.subject_code)
 }
 
 function buildStudentKey(source = {}) {
@@ -172,12 +184,18 @@ export default function InstructorReports() {
       gradesStudents.forEach((student) => ensureStudent(student))
       attendanceStudents.forEach((student) => ensureStudent(student))
 
-      const rows = Array.from(merged.values()).map((student) => {
+      const sectionCode = getReportSectionCode(klass, [...rosterStudents, ...gradesStudents, ...attendanceStudents])
+      const classInfo = {
+        ...klass,
+        section_code: sectionCode,
+      }
+
+      const rows = sortStudentsByName(Array.from(merged.values()).map((student) => {
         const yesFlags = getNeedsAssessmentYesValues(student)
         return {
-          subject_code: klass?.subject_code || '',
-          subject_name: klass?.subject_name || '',
-          section_code: klass?.section_code || '',
+          subject_code: classInfo?.subject_code || '',
+          subject_name: classInfo?.subject_name || '',
+          section_code: classInfo?.section_code || '',
           student_name: student.student_name || '',
           student_id: student.student_id || '',
           student_email: student.student_email || '',
@@ -201,10 +219,10 @@ export default function InstructorReports() {
           received_academic_support: student.received_academic_support ? 'Yes' : 'No',
           needs_assessment_yes: yesFlags.join(' | '),
         }
-      })
+      }))
 
       setReportData({
-        classInfo: klass,
+        classInfo,
         rows,
         riskSummary,
         totals: {
@@ -247,7 +265,7 @@ export default function InstructorReports() {
       if (row.prediction_label === 'Academic Problem' || row.prediction_label === 'External Factor') {
         return 'High'
       } else if (row.flagged_for_mentoring === 'Yes') {
-        return 'Medium'
+        return 'High'
       }
       return 'Low'
     }
@@ -638,7 +656,7 @@ export default function InstructorReports() {
                   </div>
                   <div className="clean-scrollbar max-h-[32rem] overflow-auto">
                     <table className="w-full text-left min-w-[480px]">
-                      <thead className="bg-slate-50 border-b border-slate-200">
+                      <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
                         <tr>
                           {['Student ID', 'Student Name', 'Attendance', 'Midterm', 'Referred'].map((header) => (
                             <th key={header} className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">

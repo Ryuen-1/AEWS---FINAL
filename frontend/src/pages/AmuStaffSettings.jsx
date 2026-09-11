@@ -4,6 +4,7 @@ import { Users, HelpCircle, PlayCircle } from 'lucide-react'
 import { getPlayTutorialEveryLogin, setPlayTutorialEveryLogin } from '../lib/tutorialPrefs'
 import DashboardLayout from '../components/DashboardLayout'
 import ProfilePageLayout from '../components/ProfilePageLayout'
+import PasswordChangeCard from '../components/PasswordChangeCard'
 import { useAuth } from '../context/AuthContext'
 import { updateUser as updateUserApi, getUser, requestEmailChange, verifyEmailChange, cancelEmailChange, getEmailChangeStatus } from '../api'
 
@@ -162,6 +163,7 @@ export default function AmuStaffSettings() {
 
   const rightSection = (
     <div className="space-y-6">
+      <PasswordChangeCard accent="teal" />
       {pendingEmail && <section aria-label="Verify new email" className="rounded-xl border border-teal-200 bg-white p-5 shadow-sm">
         <h3 className="font-semibold text-slate-900">Verify your new email</h3>
         <p className="mt-2 break-words text-sm leading-6 text-slate-600">Enter the 6-digit code sent to <strong>{pendingEmail}</strong>. It expires in 10 minutes. Your current email is still active.</p>

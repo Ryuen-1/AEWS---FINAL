@@ -225,6 +225,12 @@ def _can_make_prediction(features: dict[str, float | int]) -> tuple[bool, str]:
 
 
 def _select_prediction_profile(enrollment: dict[str, Any], features: dict[str, float | int]) -> str:
+    has_grade_components = any(
+        features.get(name) not in (None, 0, 0.0)
+        for name in ("class_standing", "lab_grade", "major_output_grade")
+    )
+    if has_grade_components:
+        return "midterm_attendance_needs_with_components"
     return "midterm_attendance_needs"
 
 
@@ -509,12 +515,9 @@ def _predict_with_fallback(features: dict[str, float | int]) -> dict[str, float 
         elif midterm_grade >= 2.0:
             risk_score += 1
 
-    if risk_score >= 7:
-        prediction = 2
-        risk_label = "High"
-    elif risk_score >= 4:
+    if risk_score >= 4:
         prediction = 1
-        risk_label = "Medium"
+        risk_label = "High"
     else:
         prediction = 0
         risk_label = "Low"
@@ -590,8 +593,7 @@ def predict_student_risk(enrollment: dict[str, Any]) -> dict[str, Any]:
 
     risk_label_map = {
         0: "Low",
-        1: "Medium",
-        2: "High",
+        1: "High",
     }
     risk_label = risk_label_map.get(int(prediction), "Low")
     

@@ -32,6 +32,35 @@ export default function DashboardLayout({
   const accentBg = isAdmin ? 'bg-gray-700' : isAmuStaff ? 'bg-teal-600' : 'bg-blue-600'
   const accentRing = isAdmin ? 'ring-gray-200' : isAmuStaff ? 'ring-teal-200' : 'ring-blue-200'
   const roleLabel = isAdmin ? 'Admin' : isAmuStaff ? 'AMU Staff' : 'Instructor'
+  const roleTheme = isAdmin
+    ? {
+        accent: '75 85 99',
+        accentSoft: '243 244 246',
+        accentMist: '248 250 252',
+        accentGlow: '203 213 225',
+        pageFrom: '#f8fafc',
+        pageVia: '#f3f4f6',
+        pageTo: '#e5e7eb',
+      }
+    : isAmuStaff
+      ? {
+          accent: '13 148 136',
+          accentSoft: '204 251 241',
+          accentMist: '240 253 250',
+          accentGlow: '94 234 212',
+          pageFrom: '#f0fdfa',
+          pageVia: '#ecfeff',
+          pageTo: '#eef2ff',
+        }
+      : {
+          accent: '37 99 235',
+          accentSoft: '219 234 254',
+          accentMist: '239 246 255',
+          accentGlow: '147 197 253',
+          pageFrom: '#f8fafc',
+          pageVia: '#eff6ff',
+          pageTo: '#eef2ff',
+        }
 
   const basePath = variant === 'admin' ? '/admin' : variant === 'amu-staff' ? '/amu-staff' : '/instructor'
   const location = useLocation()
@@ -212,15 +241,20 @@ export default function DashboardLayout({
   return (
     <div
       className="h-screen relative dashboard-no-page-scroll overflow-hidden"
-      style={{ '--dashboard-header-height': `${headerHeight}px` }}
+      style={{
+        '--dashboard-header-height': `${headerHeight}px`,
+        '--role-accent': roleTheme.accent,
+        '--role-accent-soft': roleTheme.accentSoft,
+        '--role-accent-mist': roleTheme.accentMist,
+        '--role-accent-glow': roleTheme.accentGlow,
+      }}
     >
-      {/* Same background as login: soft blue gradient + orbs */}
-      <div className="fixed inset-0 bg-gradient-to-br from-slate-50 via-blue-50/80 to-indigo-50/70 -z-10" style={{ top: 0, left: 0 }} aria-hidden="true" />
-      <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-blue-100/30 via-transparent to-transparent" aria-hidden="true" />
-      <div className="absolute top-1/4 -left-20 w-96 h-96 rounded-full bg-blue-300/20 blur-3xl" aria-hidden="true" />
-      <div className="absolute bottom-1/4 -right-20 w-[28rem] h-[28rem] rounded-full bg-indigo-300/25 blur-3xl" aria-hidden="true" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[40rem] h-[40rem] rounded-full bg-sky-200/15 blur-3xl" aria-hidden="true" />
-      <header ref={headerRef} className={`relative z-30 sticky top-0 bg-white/80 backdrop-blur-md border-b ${isInstructor ? 'border-slate-200/70' : 'border-gray-200/70'} shadow-[0_1px_3px_rgba(0,0,0,0.05)]`}>
+      <div className="fixed inset-0 -z-10" style={{ top: 0, left: 0, backgroundImage: `linear-gradient(135deg, ${roleTheme.pageFrom}, ${roleTheme.pageVia} 48%, ${roleTheme.pageTo})` }} aria-hidden="true" />
+      <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_left,rgba(var(--role-accent-soft),0.52),transparent_44%)]" aria-hidden="true" />
+      <div className="absolute top-1/4 -left-20 w-96 h-96 rounded-full bg-[rgb(var(--role-accent-glow))]/20 blur-3xl" aria-hidden="true" />
+      <div className="absolute bottom-1/4 -right-20 w-[28rem] h-[28rem] rounded-full bg-[rgb(var(--role-accent))]/12 blur-3xl" aria-hidden="true" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[40rem] h-[40rem] rounded-full bg-white/30 blur-3xl" aria-hidden="true" />
+      <header ref={headerRef} className="relative z-30 sticky top-0 bg-white/82 backdrop-blur-md border-b border-[rgb(var(--role-accent))]/15 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
         <div className="max-w-[1680px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           {/* Brand / identity */}
           <div className="flex items-center gap-2.5 min-w-0">
@@ -290,10 +324,10 @@ export default function DashboardLayout({
         {(normalizedNavItems.length > 0 || onSettingsPage || onActivityLogsPage || onHelpPage) && (
           <aside className={`w-52 border-r ${
             isAdmin
-              ? 'border-gray-200/60 bg-gradient-to-b from-gray-50/60 via-white/80 to-white'
+              ? 'border-gray-200/60 bg-gradient-to-b from-gray-50/80 via-white/85 to-white'
               : isAmuStaff
-                ? 'border-teal-100/60 bg-gradient-to-b from-teal-50/40 via-white/80 to-white'
-                : 'border-slate-200/60 bg-gradient-to-b from-slate-50/50 via-white/80 to-white'
+                ? 'border-teal-100/70 bg-gradient-to-b from-teal-50/65 via-white/85 to-white'
+                : 'border-blue-100/70 bg-gradient-to-b from-blue-50/65 via-white/85 to-white'
           } py-3.5 px-3 flex-none h-[calc(100vh-var(--dashboard-header-height))] max-h-[calc(100vh-var(--dashboard-header-height))] overflow-hidden backdrop-blur-sm`}>
             <nav className="flex h-full min-h-0 flex-col clean-scrollbar overflow-y-auto pr-1" aria-label="Page navigation">
               <div className="space-y-1.5">
@@ -357,7 +391,7 @@ export default function DashboardLayout({
         {/* Main Content */}
         <main className="clean-scrollbar flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
           <div className="max-w-[1680px] mx-auto px-3 sm:px-4 lg:px-5 py-4 sm:py-5">
-            <div className="mx-auto w-full max-w-[1200px] rounded-2xl border border-slate-200/80 bg-white/45 p-4 shadow-sm sm:p-5 lg:p-6">
+            <div className="mx-auto w-full max-w-[1200px] rounded-2xl border border-[rgb(var(--role-accent))]/12 bg-white/60 p-4 shadow-sm shadow-[rgb(var(--role-accent))]/5 ring-1 ring-white/65 sm:p-5 lg:p-6">
               {children}
             </div>
           </div>

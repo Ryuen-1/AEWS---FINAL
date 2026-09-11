@@ -277,11 +277,13 @@ export async function logout() {
   }
 }
 
-export async function requestPasswordReset(email) {
+export async function requestPasswordReset(email, role = '') {
+  const payload = { email: String(email ?? '').trim() }
+  if (role) payload.role = role
   const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: String(email ?? '').trim() }),
+    body: JSON.stringify(payload),
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
@@ -574,13 +576,26 @@ export async function archiveClass(classId) {
   return data
 }
 
-export async function changePassword(currentPassword, newPassword) {
+export async function requestPasswordChangeCode() {
+  const res = await fetch(`${API_BASE}/api/auth/password-change-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to send verification code')
+  }
+  return data
+}
+
+export async function changePassword(currentPassword, newPassword, verificationCode) {
   const res = await fetch(`${API_BASE}/api/auth/change-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({
       current_password: String(currentPassword ?? ''),
       new_password: String(newPassword ?? ''),
+      verification_code: String(verificationCode ?? ''),
     }),
   })
   const data = await res.json().catch(() => ({}))
@@ -1060,7 +1075,7 @@ export async function getAdminOverview(department = 'all') {
   return data
 }
 
-/** Students at risk (High/Medium) with department from instructor. */
+/** Students at risk with department from instructor. */
 export async function getAdminStudentsAtRisk(department = 'all') {
   const params = new URLSearchParams()
   if (department && department !== 'all') params.set('department', department)
@@ -1142,7 +1157,7 @@ export async function getAdminAnalyticsDepartmentChart(department = 'all') {
   return Array.isArray(data) ? data : []
 }
 
-/** Risk level distribution (High, Medium, Low) for pie chart. */
+/** Risk level distribution (High, Low) for pie chart. */
 export async function getAdminAnalyticsRiskDistribution(department = 'all') {
   const params = new URLSearchParams()
   if (department && department !== 'all') params.set('department', department)

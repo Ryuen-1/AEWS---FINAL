@@ -4,6 +4,7 @@ import { deleteAllAmuStaffReferrals, getAmuStaffReferrals } from '../../api'
 import InlineToast from '../InlineToast'
 import ScrollTableContainer from '../ScrollTableContainer'
 import ReferralDetailModal from './ReferralDetailModal'
+import { sortStudentsByName } from '../../lib/studentSort'
 
 const sourceClass = {
   grades: 'bg-blue-100 text-blue-700',
@@ -27,7 +28,7 @@ export default function AmuStaffReferrals() {
     getAmuStaffReferrals('', '')
       .then((referrals) => {
         if (isMounted) {
-          setList(Array.isArray(referrals) ? referrals : [])
+          setList(sortStudentsByName(referrals))
           setError(null)
         }
       })
@@ -46,13 +47,13 @@ export default function AmuStaffReferrals() {
   }, [])
 
   const searchLower = (search || '').trim().toLowerCase()
-  const filtered = searchLower
+  const filtered = sortStudentsByName(searchLower
     ? list.filter(
         (r) =>
           (r.student_email && r.student_email.toLowerCase().includes(searchLower)) ||
           (r.student_name && r.student_name.toLowerCase().includes(searchLower))
       )
-    : list
+    : list)
 
   const handleDeleteAll = async () => {
     try {
