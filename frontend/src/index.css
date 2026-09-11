@@ -17,10 +17,14 @@ html {
   scroll-behavior: smooth;
   /* Use standard base font to reduce overall UI scale */
   font-size: 16px;
+  margin: 0 !important;
+  padding: 0 !important;
+  position: relative;
 }
 
 body {
-  margin: 0;
+  margin: 0 !important;
+  padding: 0 !important;
   min-height: 100vh;
   background-color: rgb(243 244 246); /* gray-100 fallback */
   /* Apply the same soft gradient as the dashboard background globally so overscroll never shows white */
@@ -30,10 +34,13 @@ body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  position: relative;
 }
 
 #root {
   min-height: 100vh;
+  margin: 0;
+  padding: 0;
 }
 
 /* Ensure no white gap appears when overscrolling on any page */
@@ -53,9 +60,29 @@ html, body, #root, .app-root {
   max-width: 100vw;
 }
 
-/* Utility: dashboard wrapper prevents page scrolling */
+/* Ensure header sits at the very top with no gap */
+header {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+/* Remove any gap above the dashboard layout wrapper & prevent page scrolling */
 .dashboard-no-page-scroll {
-  overflow: hidden; /* hide page scrollbar */
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw !important;
+}
+
+#root > * {
+  margin-top: 0 !important;
 }
 
 /* (removed) body.layout-scroll-disabled — keep body scrolling enabled to avoid stuck layout */

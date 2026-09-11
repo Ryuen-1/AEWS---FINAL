@@ -312,9 +312,10 @@ export default function InstructorDashboard() {
         {activeTab === 'classes' && (
           <>
             <DashboardPageHeader
-              eyebrow="Instructor workflow"
-              title="My classes"
-              description="Start here to manage your classes, review student status, and open the next page you need without extra searching."
+              welcome
+              eyebrow="Teaching workspace"
+              title={`Welcome back${user?.name ? `, ${user.name}` : ''}.`}
+              description="Your classes, student records, and teaching tasks in one place. Open a class to review grades and attendance, or get started with a new class list."
               actions={
                 <>
                   <button
@@ -324,6 +325,13 @@ export default function InstructorDashboard() {
                   >
                     <Plus className="w-4 h-4" />
                     Add class
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/instructor?tab=students')}
+                    className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                  >
+                    <Users className="h-4 w-4" />Review students
                   </button>
                   <button
                     type="button"
@@ -337,6 +345,20 @@ export default function InstructorDashboard() {
               }
             >
               <div className="space-y-4">
+                <section className="grid gap-3 md:grid-cols-3" aria-label="Teaching shortcuts">
+                  {[
+                    { title: 'Manage your classes', text: 'Open a class below to update grades, attendance, and its student list.', action: 'Go to classes', icon: BookOpen, onClick: () => document.getElementById('instructor-class-workspace')?.scrollIntoView({ block: 'start' }) },
+                    { title: 'Review student records', text: 'Find a student and review their academic information and referral status.', action: 'View students', icon: Users, onClick: () => navigate('/instructor?tab=students') },
+                    { title: 'Prepare section reports', text: 'Review and export the available records for a class section.', action: 'Open reports', icon: FileSpreadsheet, onClick: () => navigate('/instructor/reports') },
+                  ].map((item) => {
+                    const ShortcutIcon = item.icon
+                    return <div key={item.title} className="flex flex-col rounded-xl border border-slate-200 bg-white p-4"><ShortcutIcon className="mb-3 h-5 w-5 text-blue-600" aria-hidden="true" /><h3 className="text-sm font-semibold text-slate-900">{item.title}</h3><p className="mt-2 mb-4 text-xs leading-5 text-slate-600">{item.text}</p><button type="button" onClick={item.onClick} className="mt-auto inline-flex items-center gap-1 self-start rounded text-xs font-semibold text-blue-700 hover:text-blue-900 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-600">{item.action}<ChevronRight className="h-4 w-4" aria-hidden="true" /></button></div>
+                  })}
+                </section>
+                <div id="instructor-class-workspace" className="scroll-mt-4 rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Your teaching overview</h3>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">{classesLoading ? 'Loading your class summary…' : classesError ? 'Your class summary is currently unavailable.' : classesList.length === 0 ? 'Add your first class to start keeping grades, attendance, and student records together.' : `${classesList.length} active class${classesList.length === 1 ? '' : 'es'} with ${totalStudents} student enrollments. Select a class below to continue your work.`}</p>
+                </div>
                 {classesLoading && (
                   <div className="flex flex-col items-center justify-center gap-3 py-16">
                     <div className="w-10 h-10 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
@@ -386,7 +408,7 @@ export default function InstructorDashboard() {
                           </div>
                           <div>
                             <p className="text-base font-bold text-slate-900 tabular-nums">{totalStudents}</p>
-                            <p className="text-[11px] font-medium text-slate-600">Total Students</p>
+                            <p className="text-[11px] font-medium text-slate-600">Student enrollments</p>
                           </div>
                         </div>
                       </div>

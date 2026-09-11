@@ -35,8 +35,9 @@ export default function NotificationsPopover({
   onClear,
 }) {
   const styles = VARIANT[variant] || VARIANT.instructor
-  const unreadCount = notifications.filter((n) => !n.read).length
-  const displayList = notifications.slice(0, 8)
+  const unreadNotifications = notifications.filter((n) => !n.read)
+  const unreadCount = unreadNotifications.length
+  const displayList = unreadNotifications.slice(0, 8)
 
   return (
     <div className="w-[380px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden flex flex-col max-h-[420px]">

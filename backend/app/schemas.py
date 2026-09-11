@@ -19,6 +19,8 @@ class UserCreate(UserBase):
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
+    first_name: Optional[str] = Field(default=None, max_length=100)
+    last_name: Optional[str] = Field(default=None, max_length=100)
     email: Optional[EmailStr] = None
     role: Optional[Literal["instructor", "admin", "amu-staff"]] = None
     college: Optional[str] = None
@@ -29,12 +31,23 @@ class UserUpdate(BaseModel):
 
 class UserResponse(UserBase):
     id: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     email_verified: Optional[bool] = None
     requires_email_verification: Optional[bool] = None
     message: Optional[str] = None
     verification_link: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class EmailChangeRequest(BaseModel):
+    email: EmailStr
+
+
+class EmailChangeVerify(BaseModel):
+    email: EmailStr
+    code: str = Field(pattern=r"^[0-9]{6}$")
 
 
 # ----- Student -----

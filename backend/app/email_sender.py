@@ -160,6 +160,30 @@ This link expires in 1 hour. If you didn't request a reset, you can ignore this 
     return subject, plain_body, html_body
 
 
+def send_email_change_code(to_email: str, code: str, user_name: str) -> tuple[bool, str | None]:
+    """Send a short-lived code to the proposed new address, never log the code."""
+    host, port, user, password, from_email = _get_gmail_config()
+    if host is None:
+        return False, "Email delivery is not configured"
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "Verify your new email - Academic Early Warning System"
+    msg["From"] = from_email
+    msg["To"] = to_email
+    plain = f"Hello {user_name},\n\nYour email change verification code is: {code}\n\nEnter this code in your account Settings within 10 minutes. Your current email stays active until you verify. If you did not request this change, ignore this email."
+    html = f'<h2>Verify your new email</h2><p>Hello {escape(user_name)},</p><p>Enter this code in your account Settings:</p><p style="font-size:28px;letter-spacing:6px;font-weight:bold">{code}</p><p>This code expires in 10 minutes. Your current email stays active until you verify. If you did not request this change, ignore this email.</p>'
+    msg.attach(MIMEText(plain, "plain", "utf-8"))
+    msg.attach(MIMEText(html, "html", "utf-8"))
+    try:
+        with smtplib.SMTP(host, port, timeout=15) as server:
+            server.starttls()
+            server.login(user, password)
+            server.sendmail(from_email, to_email, msg.as_string())
+        return True, None
+    except Exception:
+        logger.warning("Email change code delivery failed")
+        return False, "Unable to send verification email"
+
+
 def send_password_reset_email(to_email: str, reset_link: str, user_name: str) -> tuple[bool, str | None]:
     """Send password reset email via Gmail SMTP. Returns (True, None) if sent, (False, error_message) otherwise."""
     config = _get_gmail_config()

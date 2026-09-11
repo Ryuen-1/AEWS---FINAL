@@ -1,0 +1,46 @@
+AEWS: NLP and Web App Testing Matrix
+Name of Respondent:						    			Date: 			
+Instructions:
+For each testing area, follow the specified method/approach. Indicate whether the actual result matches the expected result by marking ✓ (Pass) or ✗ (Fail) in the Panel Check column.
+
+             					    					Date: 		
+           Name of Respondent and Signature
+
+Testing Area | Objective | Method/Approach | Expected Result | Panel Check
+User Authentication | Verify login functionality with valid credentials | Attempt login with valid username and password | User successfully logs in and redirected to appropriate dashboard | 
+ | Verify login rejection with invalid credentials | Attempt login with invalid username or password | System rejects login with appropriate error message | 
+ | Verify role-based access control | Try to access features outside user role (e.g., student accessing admin features) | System denies access and shows appropriate error | 
+File Upload System | Verify classlist upload and validation | Upload valid classlist file (CSV/XLSX) and verify enrollment creation | System processes file and creates student enrollments correctly | 
+ | Verify gradesheet upload with data validation | Upload gradesheet with student data matching classlist | System processes grades and updates student records correctly | 
+ | Verify rejection of mismatched data | Upload gradesheet with student data NOT matching classlist | System rejects upload with clear mismatch error message | 
+ | Verify attendance upload functionality | Upload valid attendance file | System processes attendance data and updates student records correctly | 
+ | Verify needs assessment upload | Upload valid needs assessment file | System processes needs assessment data correctly | 
+Student Data Validation | Verify student ID matching | Upload file with student IDs that match classlist | System accepts upload when IDs match | 
+ | Verify student name matching | Upload file with student names that match classlist | System accepts upload when names match | 
+ | Verify cross-validation (ID + name) | Upload file with both ID and name validation | System validates both ID and name consistency | 
+ | Verify duplicate detection | Upload file with duplicate student entries | System identifies and handles duplicates appropriately | 
+AI Prediction System | Verify AI model loading | Access student dashboard with academic data | AI model loads and generates predictions | 
+ | Verify risk assessment accuracy | Check predictions for students with known risk levels | AI correctly classifies student risk levels (Low/High) | 
+ | Verify automatic referral trigger | Upload grades that meet academic threshold for referral | System automatically creates referral without manual intervention | 
+ | Verify AI prediction with insufficient data | Check student with missing academic data | System shows insufficient data warning appropriately | 
+ | Verify prediction component explanations | View AI prediction explanation for a student | System shows which factors contributed to risk assessment | 
+Email Notification System | Verify referral email delivery | Trigger automatic referral for a student | System sends referral notification email to appropriate AMU staff | 
+ | Verify credential email for new accounts | Create new student account | System sends temporary password email to student | 
+ | Verify welcome email for existing accounts | Trigger referral for existing student account | System sends welcome email to student appropriately | 
+ | Verify email content accuracy | Check email content for student information | Email contains accurate student ID, name, and referral details | 
+Dashboard and Reporting | Verify dashboard data loading | Load instructor dashboard with class data | Dashboard displays accurate class and student information | 
+ | Verify grades table display | View student grades in class grades page | System displays correct midterm grades and component scores | 
+ | Verify attendance table display | View student attendance in attendance page | System displays correct attendance data | 
+ | Verify PDF report generation | Generate student report | System generates PDF with correct student information and performance data | 
+ | Verify referral history tracking | View student referral history | System shows accurate referral history with reasons and dates | 
+System Performance | Verify page load time | Navigate between different pages | Pages load within acceptable time (2-3 seconds) | 
+ | Verify multi-user performance | Simulate multiple users accessing system simultaneously | System remains responsive under load | 
+ | Verify file upload handling time | Upload large classlist/gradesheet files | Uploads complete within acceptable time | 
+ | Verify AI prediction processing time | Trigger AI predictions for multiple students | Predictions generate within acceptable time | 
+Error Handling | Verify file format validation | Try uploading invalid file format (e.g., .txt, .pdf for grades) | System rejects with appropriate error message | 
+ | Verify network error handling | Attempt operation with no internet connection | System shows appropriate error message without crashing | 
+ | Verify missing data handling | Try to upload file with missing required columns | System provides clear error about missing data | 
+ | Verify timeout handling | Slow network during file upload | System handles timeout gracefully with appropriate error | 
+Security Features | Verify password encryption | Check if stored passwords are encrypted | Passwords are properly hashed in database | 
+ | Verify session timeout | Leave system inactive for extended period | System automatically logs out after timeout | 
+ | Verify SQL injection protection | Try malicious input in search fields | System properly sanitizes inputs and prevents injection | 

@@ -3494,27 +3494,6 @@ async def upload_class_files(
                     error_detail["reason"] = mismatch_details.get("mismatch_reasons", [{}])[0].get("reason", "Unknown error")
                 
                 raise HTTPException(status_code=400, detail=error_detail)
-        elif type == "classlist":
-            # For classlist uploads to existing classes, also validate against existing enrollments
-            keys = list(rows[0].keys())
-            is_match_valid, mismatch_details = _validate_student_data_match(db, class_id, rows, keys, type)
-            if not is_match_valid:
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "error": "Student data mismatch detected",
-                        "file": upload.filename,
-                        "upload_type": type,
-                        "match_percentage": mismatch_details["match_percentage"],
-                        "mismatch_percentage": mismatch_details["mismatch_percentage"],
-                        "threshold": mismatch_details["threshold"],
-                        "total_students": mismatch_details["total_students"],
-                        "matched_students": mismatch_details["matched_students"],
-                        "mismatched_students": mismatch_details["mismatched_students"],
-                        "rows_without_identifiers": mismatch_details["rows_without_identifiers"],
-                        "mismatch_details": mismatch_details["mismatch_reasons"]
-                    }
-                )
 
         keys = list(rows[0].keys())
         if type == "gradesheet":

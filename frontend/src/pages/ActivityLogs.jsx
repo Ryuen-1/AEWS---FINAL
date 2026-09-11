@@ -84,7 +84,7 @@ export default function ActivityLogs() {
               {logs.map((log, index) => (
                 <div
                   key={log.id}
-                  className={`rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm ${index === 0 ? 'sticky top-0 z-10 border-blue-100 bg-white/95 backdrop-blur-sm shadow-md' : ''}`}
+                  className={`rounded-xl border px-4 py-4 shadow-sm ${index === 0 ? 'border-blue-200 bg-blue-50/40 shadow-md' : 'border-slate-200 bg-white'}`}
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">

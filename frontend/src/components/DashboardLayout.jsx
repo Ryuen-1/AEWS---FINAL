@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Bell, Settings, LogOut, HelpCircle, ChevronRight, BookOpen, Users, BarChart2, Clipboard, Activity, ClipboardList } from 'lucide-react'
+import { Bell, Settings, LogOut, HelpCircle, ChevronRight, BookOpen, Users, BarChart2, Clipboard, Activity, ClipboardList, GraduationCap } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useNotifications } from '../context/NotificationsContext'
@@ -41,9 +41,10 @@ export default function DashboardLayout({
 
   const getDefaultNavItems = () => {
     if (variant === 'amu-staff') {
+      const activeAmuTab = new URLSearchParams(location.search).get('tab') || 'overview'
       return [
         // AMU Staff: show Overview as primary, then role actions
-        { label: 'Overview', icon: BookOpen, onClick: () => navigate(`${basePath}`), active: location.pathname === `${basePath}` || location.pathname === `${basePath}/` },
+        { label: 'Overview', icon: BookOpen, onClick: () => navigate(`${basePath}`), active: (location.pathname === `${basePath}` || location.pathname === `${basePath}/`) && !['referrals', 'reports'].includes(activeAmuTab) },
         { label: 'Referrals', icon: Clipboard, onClick: () => navigate(`${basePath}?tab=referrals`), active: location.pathname === `${basePath}` && new URLSearchParams(location.search).get('tab') === 'referrals' },
         { label: 'Needs assessments', icon: Users, onClick: () => navigate(`${basePath}/needs-assessments`), active: location.pathname.startsWith(`${basePath}/needs-assessments`) },
         { label: 'Reports', icon: BarChart2, onClick: () => navigate(`${basePath}?tab=reports`), active: location.pathname === `${basePath}` && new URLSearchParams(location.search).get('tab') === 'reports' },
@@ -58,6 +59,7 @@ export default function DashboardLayout({
         { label: 'System Analytics', icon: BarChart2, onClick: () => navigate(`${basePath}?tab=analytics`), active: location.pathname === `${basePath}` && activeAdminTab === 'analytics' },
         { label: 'Institution Reports', icon: Clipboard, onClick: () => navigate(`${basePath}?tab=reports`), active: location.pathname === `${basePath}` && activeAdminTab === 'reports' },
         { label: 'User Accounts', icon: Users, onClick: () => navigate(`${basePath}?tab=users`), active: location.pathname === `${basePath}` && activeAdminTab === 'users' },
+        { label: 'Student Accounts', icon: GraduationCap, onClick: () => navigate(`${basePath}?tab=students`), active: location.pathname === `${basePath}` && activeAdminTab === 'students' },
         { label: 'Needs Assessment Form', icon: ClipboardList, onClick: () => navigate(`${basePath}/needs-assessment-form`), active: location.pathname === `${basePath}/needs-assessment-form` },
       ]
     }
@@ -92,6 +94,7 @@ export default function DashboardLayout({
       'System Analytics': BarChart2,
       'Institution Reports': Clipboard,
       'User Accounts': Users,
+      'Student Accounts': GraduationCap,
       'Needs Assessment Form': ClipboardList,
       'Activity logs': Activity,
     },
@@ -115,6 +118,15 @@ export default function DashboardLayout({
     ...it,
     icon: (it.label && roleIcons[it.label]) || it.icon,
   }))
+  const activePage = onActivityLogsPage
+    ? { label: 'Activity logs', icon: Activity }
+    : onSettingsPage
+      ? { label: 'Settings', icon: Settings }
+      : onHelpPage
+        ? { label: 'Help Center', icon: HelpCircle }
+        : normalizedNavItems.find((item) => item.active)
+  const HeaderIcon = activePage?.icon || Icon
+  const headerTitle = activePage?.label || title
 
   useEffect(() => {
     if (!notificationsOpen) return
@@ -150,7 +162,7 @@ export default function DashboardLayout({
       observer.disconnect()
       window.removeEventListener('resize', updateHeaderHeight)
     }
-  }, [navItems.length, title, subtitle, variant])
+  }, [navItems.length, headerTitle, subtitle, variant])
 
   const handleLogout = () => {
     logout()
@@ -177,55 +189,56 @@ export default function DashboardLayout({
     const btnActive = isInstructor ? 'bg-slate-100 text-slate-800' : 'bg-gray-100 text-gray-800'
     const roleHomeLabel = isAdmin ? 'System workspace' : isAmuStaff ? 'Support workspace' : 'Teaching workspace'
   const notifBtnClass = isAdmin
-    ? 'relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2'
+    ? 'relative inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200/80 bg-white/90 text-gray-700 hover:bg-gray-50 hover:border-gray-300 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2'
     : isAmuStaff
-      ? 'relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-teal-200 bg-teal-50/60 text-teal-800 hover:bg-teal-100/70 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2'
-      : 'relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50/70 text-blue-800 hover:bg-blue-100/70 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
+      ? 'relative inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-teal-200/70 bg-teal-50/50 text-teal-800 hover:bg-teal-100/60 hover:border-teal-300/70 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2'
+      : 'relative inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-blue-200/70 bg-blue-50/50 text-blue-800 hover:bg-blue-100/60 hover:border-blue-300/70 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
   const navBtnClassFor = (active = false) => {
+    const base = 'w-full min-h-[48px] flex items-center gap-3 rounded-xl border px-3 py-2.5 text-[13px] font-medium transition-all duration-200'
     if (active) {
       return isAdmin
-        ? 'w-full min-h-[52px] flex items-center gap-3 rounded-lg border px-3 py-2 text-sm font-medium transition-all border-gray-700 bg-gray-700 text-white shadow-md shadow-gray-700/20'
+        ? `${base} border-gray-700 bg-gray-700 text-white shadow-md shadow-gray-700/20`
         : isAmuStaff
-          ? 'w-full min-h-[52px] flex items-center gap-3 rounded-lg border px-3 py-2 text-sm font-medium transition-all border-teal-600 bg-teal-600 text-white shadow-md shadow-teal-600/20'
-          : 'w-full min-h-[52px] flex items-center gap-3 rounded-lg border px-3 py-2 text-sm font-medium transition-all border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/25'
+          ? `${base} border-teal-600 bg-teal-600 text-white shadow-md shadow-teal-600/20`
+          : `${base} border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/25`
     }
     return isAdmin
-      ? 'w-full min-h-[52px] flex items-center gap-3 rounded-lg border px-3 py-2 text-sm font-medium transition-all border-transparent bg-white/50 text-gray-700 hover:bg-white hover:border-gray-200'
+      ? `${base} border-transparent bg-white/40 text-gray-700 hover:bg-gray-100/80 hover:border-gray-400/60 hover:shadow-sm`
       : isAmuStaff
-        ? 'w-full min-h-[52px] flex items-center gap-3 rounded-lg border px-3 py-2 text-sm font-medium transition-all border-transparent bg-white/50 text-slate-700 hover:bg-white hover:border-teal-100'
-        : 'w-full min-h-[52px] flex items-center gap-3 rounded-lg border px-3 py-2 text-sm font-medium transition-all border-transparent bg-white/50 text-slate-700 hover:bg-white hover:border-slate-200'
+        ? `${base} border-transparent bg-white/40 text-slate-700 hover:bg-teal-50/70 hover:border-teal-300/60 hover:shadow-sm`
+        : `${base} border-transparent bg-white/40 text-slate-700 hover:bg-blue-50/70 hover:border-blue-300/60 hover:shadow-sm`
   }
 
   return (
     <div
-      className="min-h-screen relative dashboard-no-page-scroll"
+      className="h-screen relative dashboard-no-page-scroll overflow-hidden"
       style={{ '--dashboard-header-height': `${headerHeight}px` }}
     >
       {/* Same background as login: soft blue gradient + orbs */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-200 via-indigo-200/95 to-blue-300/90" aria-hidden="true" />
-      <div className="absolute top-1/4 -left-20 w-72 h-72 rounded-full bg-blue-400/45 blur-3xl" aria-hidden="true" />
-      <div className="absolute bottom-1/4 -right-20 w-96 h-96 rounded-full bg-indigo-400/40 blur-3xl" aria-hidden="true" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[32rem] h-[32rem] rounded-full bg-blue-400/25 blur-3xl" aria-hidden="true" />
-      <div className="absolute top-3/4 left-1/4 w-64 h-64 rounded-full bg-sky-400/35 blur-3xl" aria-hidden="true" />
-      <header ref={headerRef} className={`relative z-10 sticky top-0 bg-white/90 backdrop-blur-sm border-b ${isInstructor ? 'border-slate-200' : 'border-gray-200'} shadow-sm`}>
-        <div className="max-w-[1680px] mx-auto px-4 sm:px-5 py-2.5 flex items-center justify-between gap-2.5">
+      <div className="fixed inset-0 bg-gradient-to-br from-slate-50 via-blue-50/80 to-indigo-50/70 -z-10" style={{ top: 0, left: 0 }} aria-hidden="true" />
+      <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-blue-100/30 via-transparent to-transparent" aria-hidden="true" />
+      <div className="absolute top-1/4 -left-20 w-96 h-96 rounded-full bg-blue-300/20 blur-3xl" aria-hidden="true" />
+      <div className="absolute bottom-1/4 -right-20 w-[28rem] h-[28rem] rounded-full bg-indigo-300/25 blur-3xl" aria-hidden="true" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[40rem] h-[40rem] rounded-full bg-sky-200/15 blur-3xl" aria-hidden="true" />
+      <header ref={headerRef} className={`relative z-30 sticky top-0 bg-white/80 backdrop-blur-md border-b ${isInstructor ? 'border-slate-200/70' : 'border-gray-200/70'} shadow-[0_1px_3px_rgba(0,0,0,0.05)]`}>
+        <div className="max-w-[1680px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           {/* Brand / identity */}
           <div className="flex items-center gap-2.5 min-w-0">
             <div
-              className={`flex-shrink-0 w-10 h-10 rounded-lg ${accentBg} flex items-center justify-center text-white shadow-sm ring-2 ${accentRing} ring-offset-2 ring-offset-white`}
+              className={`flex-shrink-0 w-10 h-10 rounded-xl ${accentBg} flex items-center justify-center text-white shadow-md ring-2 ${accentRing} ring-offset-2 ring-offset-white/80 transition-transform duration-200 hover:scale-105`}
               aria-hidden
             >
-              {Icon ? <Icon className="w-4 h-4" /> : (
+              {HeaderIcon ? <HeaderIcon className="w-4.5 h-4.5" /> : (
                 <span className="text-sm font-bold">M</span>
               )}
             </div>
             <div className="min-w-0">
-              <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${textMuted}`}>{roleHomeLabel}</p>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <h1 className={`text-sm font-bold ${textPrimary} tracking-tight truncate`}>{title}</h1>
+              <p className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${textMuted}`}>{roleHomeLabel}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className={`text-sm font-bold ${textPrimary} tracking-tight truncate`}>{headerTitle}</h1>
                 <span
-                  className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[8px] font-semibold uppercase tracking-wide ${
-                    isAdmin ? 'bg-gray-200 text-gray-800' : isAmuStaff ? 'bg-teal-50 text-teal-700' : 'bg-blue-50 text-blue-700'
+                  className={`flex-shrink-0 px-2 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-wider ${
+                    isAdmin ? 'bg-gray-100 text-gray-700 ring-1 ring-gray-200/80' : isAmuStaff ? 'bg-teal-50 text-teal-700 ring-1 ring-teal-200/60' : 'bg-blue-50 text-blue-700 ring-1 ring-blue-200/60'
                   }`}
                 >
                   {roleLabel}
@@ -272,18 +285,18 @@ export default function DashboardLayout({
           </div>
         </div>
       </header>
-      <div className="flex relative h-[calc(100vh-var(--dashboard-header-height))]">
+      <div className="flex relative h-[calc(100vh-var(--dashboard-header-height))]" style={{ margin: 0, padding: 0 }}>
         {/* Sidebar Navigation */}
         {(normalizedNavItems.length > 0 || onSettingsPage || onActivityLogsPage || onHelpPage) && (
-          <aside className={`w-48 border-r ${
+          <aside className={`w-52 border-r ${
             isAdmin
-              ? 'border-gray-200 bg-gradient-to-b from-gray-50/50 to-white'
+              ? 'border-gray-200/60 bg-gradient-to-b from-gray-50/60 via-white/80 to-white'
               : isAmuStaff
-                ? 'border-teal-100 bg-gradient-to-b from-teal-50/50 to-white'
-                : 'border-slate-200 bg-gradient-to-b from-slate-50/50 to-white'
-          } py-3 px-3 flex-none h-[calc(100vh-var(--dashboard-header-height))] max-h-[calc(100vh-var(--dashboard-header-height))] overflow-hidden`}>
+                ? 'border-teal-100/60 bg-gradient-to-b from-teal-50/40 via-white/80 to-white'
+                : 'border-slate-200/60 bg-gradient-to-b from-slate-50/50 via-white/80 to-white'
+          } py-3.5 px-3 flex-none h-[calc(100vh-var(--dashboard-header-height))] max-h-[calc(100vh-var(--dashboard-header-height))] overflow-hidden backdrop-blur-sm`}>
             <nav className="flex h-full min-h-0 flex-col clean-scrollbar overflow-y-auto pr-1" aria-label="Page navigation">
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 {normalizedNavItems.map((item) => {
                   const isActive = !!item.active
                   return (
@@ -301,7 +314,7 @@ export default function DashboardLayout({
                   )
                 })}
               </div>
-              <div className="mt-4 pt-3 border-t px-1">
+              <div className={`mt-auto pt-3 border-t px-1 ${isAdmin ? 'border-gray-200/50' : isAmuStaff ? 'border-teal-100/50' : 'border-slate-200/50'}`}>
                 <button
                   type="button"
                   onClick={handleActivityLogs}
@@ -342,7 +355,7 @@ export default function DashboardLayout({
           </aside>
         )}
         {/* Main Content */}
-        <main className="clean-scrollbar flex-1 min-h-[calc(100vh-var(--dashboard-header-height))] overflow-y-auto overflow-x-hidden">
+        <main className="clean-scrollbar flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
           <div className="max-w-[1680px] mx-auto px-3 sm:px-4 lg:px-5 py-4 sm:py-5">
             <div className="mx-auto w-full max-w-[1200px] rounded-2xl border border-slate-200/80 bg-white/45 p-4 shadow-sm sm:p-5 lg:p-6">
               {children}

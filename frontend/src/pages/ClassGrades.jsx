@@ -246,16 +246,7 @@ export default function ClassGrades() {
             return
           }
           
-          const mismatchDetails = errorData.mismatch_details || []
-          
-          // Create simple error message with mismatched students
-          const mismatchedStudents = mismatchDetails.map(m => {
-            const name = m.student_name || 'Unknown'
-            const id = m.student_id || 'No ID'
-            return `${name} (${id})`
-          }).join(', ')
-          
-          const errorText = `Upload Rejected: Student Data Mismatch: ${mismatchedStudents} not found in classlist`
+          const errorText = 'Upload Rejected: Student Data Mismatch'
           setGradesheetError(errorText)
         } else {
           setGradesheetError(errorMessage)

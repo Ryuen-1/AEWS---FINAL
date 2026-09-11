@@ -7,6 +7,7 @@ import {
   User,
   ClipboardList,
   GraduationCap,
+  ChevronRight,
 } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import DashboardPageHeader from '../components/DashboardPageHeader'
@@ -129,16 +130,35 @@ export default function AdminDashboard() {
 
       <div className="space-y-3">
         <DashboardPageHeader
-          eyebrow="Administrator workflow"
-          title={contentTitle}
-          description={`${contentSubtitle} Keep the main sections in one place so approvals, reports, and oversight tasks stay easier to follow.`}
+          welcome={mainTab === 'overview'}
+          accent="slate"
+          eyebrow={mainTab === 'overview' ? 'Institution administration' : 'Administrator workflow'}
+          title={mainTab === 'overview' ? `Welcome back${user?.name ? `, ${user.name}` : ''}.` : contentTitle}
+          description={mainTab === 'overview' ? 'Keep account approvals, departments, and institution oversight moving. Start with the task that needs your attention, then review the records below.' : contentSubtitle}
+          actions={mainTab === 'overview' ? <>
+            <button type="button" onClick={() => navigate('/admin?tab=pending')} className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600"><User className="h-4 w-4" />Review pending accounts</button>
+            <button type="button" onClick={() => navigate('/admin?tab=reports')} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600"><FileText className="h-4 w-4" />View institution reports</button>
+          </> : null}
         >
           <div className="mt-1 space-y-4">
             {mainTab === 'overview' && (
+              <>
+              <section aria-label="Administration shortcuts" className="grid gap-3 md:grid-cols-3">
+                {[
+                  { title: 'Manage account access', text: 'Review account requests and maintain instructor and AMU staff accounts.', action: 'Manage user accounts', tab: 'users', icon: User },
+                  { title: 'Review system activity', text: 'Explore available usage and performance metrics for the institution.', action: 'Open system analytics', tab: 'analytics', icon: BarChart3 },
+                  { title: 'Review student accounts', text: 'Find referred student accounts and review their available records.', action: 'View student accounts', tab: 'students', icon: GraduationCap },
+                ].map((item) => {
+                  const ShortcutIcon = item.icon
+                  return <div key={item.tab} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5"><span className="mb-4 self-start rounded-lg bg-slate-100 p-2 text-slate-700"><ShortcutIcon className="h-5 w-5" aria-hidden="true" /></span><h3 className="text-sm font-semibold text-slate-900">{item.title}</h3><p className="mt-2 mb-5 text-xs leading-5 text-slate-600">{item.text}</p><button type="button" onClick={() => navigate(`/admin?tab=${item.tab}`)} className="mt-auto inline-flex items-center gap-1 self-start rounded text-xs font-semibold text-slate-700 hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-slate-600">{item.action}<ChevronRight className="h-4 w-4" aria-hidden="true" /></button></div>
+                })}
+              </section>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"><h3 className="text-sm font-semibold text-slate-900">Institution directory</h3><p className="mt-1 text-xs leading-5 text-slate-600">Review departments and instructor records below. Use the shortcuts above for approvals, account management, and reporting.</p></div>
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                 <AdminDepartments department={department} />
                 <AdminInstructorsList department={department} />
               </div>
+              </>
             )}
 
             {mainTab === 'pending' && <AdminPendingAccounts />}

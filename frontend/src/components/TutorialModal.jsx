@@ -25,9 +25,9 @@ const AMUSTAFF_ITEMS = [
 ]
 
 const TUTORIAL_CONFIG = {
-  instructor: { title: 'Welcome to the Instructor dashboard', items: INSTRUCTOR_ITEMS },
-  admin: { title: 'Welcome to the Administrator dashboard', items: ADMIN_ITEMS },
-  'amu-staff': { title: 'Welcome to the AMU Staff dashboard', items: AMUSTAFF_ITEMS },
+  instructor: { title: 'Welcome To The Instructor Dashboard', items: INSTRUCTOR_ITEMS },
+  admin: { title: 'Welcome To The Administrator Dashboard', items: ADMIN_ITEMS },
+  'amu-staff': { title: 'Welcome To The AMU Staff Dashboard', items: AMUSTAFF_ITEMS },
 }
 
 export default function TutorialModal({ variant = 'instructor', onClose }) {
@@ -49,11 +49,13 @@ export default function TutorialModal({ variant = 'instructor', onClose }) {
     <HeaderAwareOverlay
       role="dialog"
       labelledBy="tutorial-title"
-      className="flex items-start justify-center bg-black/50"
-      panelClassName="max-w-md h-auto"
-      contentClassName="flex-none overflow-visible rounded-xl bg-white shadow-xl"
+      className="flex items-center justify-center"
+      panelClassName="max-w-lg w-full"
+      contentClassName="flex-none"
+      fullScreen={true}
+      onBackdropClick={onClose}
     >
-      <div className="bg-white rounded-xl shadow-xl overflow-hidden flex flex-col">
+      <div className="bg-white rounded-xl shadow-xl overflow-hidden flex flex-col mx-auto w-full max-w-lg">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
           <div className="flex items-center gap-2">
             <HelpCircle className="w-5 h-5 text-blue-600" />
@@ -68,11 +70,11 @@ export default function TutorialModal({ variant = 'instructor', onClose }) {
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="clean-scrollbar px-4 py-3 overflow-y-auto">
+        <div className="clean-scrollbar px-4 py-3 overflow-y-auto text-center">
           <p className="text-xs text-slate-600 mb-3">
             Here are the main features and terms you’ll see so nothing feels confusing:
           </p>
-          <ul className="space-y-3">
+          <ul className="space-y-3 text-left max-w-md mx-auto">
             {items.map((item, i) => {
               const Icon = item.icon
               return (

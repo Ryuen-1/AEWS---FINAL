@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
+import IdleSessionLogout from './components/IdleSessionLogout'
 import { AuthProvider } from './context/AuthContext'
 import { NotificationsProvider } from './context/NotificationsContext'
 import { ToastProvider } from './context/ToastContext'
@@ -68,6 +69,7 @@ export default function App() {
       <BrowserRouter>
         <ScrollToTop />
         <AuthProvider>
+          <IdleSessionLogout />
           <NotificationsProvider>
             <ToastProvider>
               <Routes>

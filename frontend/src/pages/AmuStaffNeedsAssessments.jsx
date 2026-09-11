@@ -334,7 +334,7 @@ export default function AmuStaffNeedsAssessments() {
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-amber-900">Prediction requirements</p>
                   <p className="text-sm text-amber-700">
-                    Students must have at least 2 of the following before prediction can be generated: grades (midterm), attendance, or completed needs assessment form. Students with insufficient data will show an "Insufficient data" notice with specific missing information.
+                    Students must have all the data — grades (midterm), attendance, and a completed needs assessment form — before a prediction can be generated. Students with insufficient data will show an "Insufficient data" notice with specific missing information.
                   </p>
                 </div>
               </div>

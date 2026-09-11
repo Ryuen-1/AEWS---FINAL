@@ -15,6 +15,7 @@ import {
   Eye,
   Download,
   Info,
+  ArrowRight,
 } from 'lucide-react'
 import { API_BASE } from '../api'
 import NeedsAssessmentPreviewModal from '../components/NeedsAssessmentPreviewModal'
@@ -148,9 +149,18 @@ export default function StudentDashboard() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-slate-900">Welcome, {student.name || 'Student'}</h2>
-          <p className="text-slate-600 mt-1">Student ID: {student.id_number || 'N/A'}</p>
+        <div className="relative mb-6 overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-blue-50 p-6 shadow-sm sm:p-8">
+          <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-16 h-56 w-56 rounded-full border-[30px] border-indigo-100/50" />
+          <div className="relative max-w-2xl">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-indigo-700">Your student support space</p>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Welcome back, {student.name || 'Student'}.</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">Keep track of your classes, complete your needs assessments, and review updates from your support team.</p>
+            <p className="mt-2 text-xs text-slate-500">Student ID: {student.id_number || 'N/A'}</p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <a href="#student-referrals" className="inline-flex items-center gap-2 rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">Review my assessments<ArrowRight className="h-4 w-4" aria-hidden="true" /></a>
+              <button type="button" onClick={() => navigate('/student-profile')} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"><User className="h-4 w-4" />View my profile</button>
+            </div>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -204,8 +214,21 @@ export default function StudentDashboard() {
           </div>
         </div>
 
+        <section className="mb-6 rounded-xl border border-indigo-100 bg-white p-5" aria-label="Your next step">
+          <p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">Your next step</p>
+          <h3 className="mt-2 text-lg font-semibold text-slate-900">{stats.pending_needs_assessments > 0 ? 'You have assessments to complete' : referrals.length > 0 ? 'Keep track of your support updates' : 'Your support space is ready'}</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600">{stats.pending_needs_assessments > 0 ? `${stats.pending_needs_assessments} assessment${stats.pending_needs_assessments === 1 ? ' is' : 's are'} pending. Check your referrals below for an available form link and share the information your AMU team needs to support you.` : referrals.length > 0 ? 'Review your submitted assessments and any saved support decisions in the referrals section below.' : 'Your assigned classes and any referrals will appear here when they become available.'}</p>
+        </section>
+        <section className="mb-8 grid gap-3 md:grid-cols-3" aria-label="Student support guide">
+          {[
+            { step: '01', title: 'Check your classes', text: 'See the subjects and sections connected to your student record.', href: '#student-classes', action: 'View my classes' },
+            { step: '02', title: 'Share your needs', text: 'Open an available assessment from your referral to tell the AMU team about your situation.', href: '#student-referrals', action: 'Find my assessments' },
+            { step: '03', title: 'Review support updates', text: 'Check your referral for your assigned staff member and any saved support decision.', href: '#student-referrals', action: 'View my referrals' },
+          ].map((item) => <div key={item.step} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5"><span className="mb-4 flex h-8 w-8 items-center justify-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-700">{item.step}</span><h3 className="text-sm font-semibold text-slate-900">{item.title}</h3><p className="mt-2 mb-5 text-xs leading-5 text-slate-600">{item.text}</p><a href={item.href} className="mt-auto inline-flex items-center gap-2 self-start rounded text-xs font-semibold text-indigo-700 hover:text-indigo-900 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-600">{item.action}<ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></a></div>)}
+        </section>
+
         {/* Classes Section */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-8">
+        <div id="student-classes" className="scroll-mt-4 bg-white rounded-xl shadow-sm border border-slate-200 mb-8">
           <div className="px-6 py-4 border-b border-slate-200">
             <h3 className="text-lg font-semibold text-slate-900">My Classes</h3>
           </div>
@@ -229,7 +252,7 @@ export default function StudentDashboard() {
         </div>
 
         {/* Referrals Section */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+        <div id="student-referrals" className="scroll-mt-4 bg-white rounded-xl shadow-sm border border-slate-200">
           <div className="px-6 py-4 border-b border-slate-200">
             <h3 className="text-lg font-semibold text-slate-900">Referrals</h3>
           </div>

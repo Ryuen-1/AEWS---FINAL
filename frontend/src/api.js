@@ -260,11 +260,14 @@ export async function verifyEmail(token) {
 
 export async function logout() {
   const refresh_token = localStorage.getItem('refresh_token')
+  const headers = getAuthHeaders()
+  // Clear credentials before waiting on a potentially slow or offline server.
+  clearStoredAuth()
   if (refresh_token) {
     try {
-      const res = await fetch(`${API_BASE}/api/auth/logout`, {
+      await fetch(`${API_BASE}/api/auth/logout`, {
         method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `refresh_token=${refresh_token}`
       })
       // Even if logout fails, clear local storage
@@ -272,9 +275,6 @@ export async function logout() {
       console.error('Logout request failed:', err)
     }
   }
-  // Always clear local storage
-  clearStoredAuth()
-  localStorage.removeItem('refresh_token')
 }
 
 export async function requestPasswordReset(email) {
@@ -330,6 +330,33 @@ export async function listUsers(role = 'all', search = '') {
     throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load users')
   }
   return Array.isArray(data) ? data : []
+}
+
+export async function requestEmailChange(userId, email) {
+  return emailChangeRequest(userId, '', 'POST', { email })
+}
+
+export async function getEmailChangeStatus(userId) {
+  return emailChangeRequest(userId, '', 'GET')
+}
+
+export async function verifyEmailChange(userId, email, code) {
+  return emailChangeRequest(userId, '/verify', 'POST', { email, code })
+}
+
+export async function cancelEmailChange(userId) {
+  return emailChangeRequest(userId, '', 'DELETE')
+}
+
+async function emailChangeRequest(userId, suffix, method, payload) {
+  const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(userId)}/email-change${suffix}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: payload ? JSON.stringify(payload) : undefined,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(formatErrorDetail(data.detail) || 'Email verification failed')
+  return data
 }
 
 export async function updateUser(userId, payload) {

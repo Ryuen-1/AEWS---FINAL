@@ -1,0 +1,58 @@
+AEWS: Functional and Performance Testing Evaluation
+Instructions:
+Please rate each survey statement based on your actual experience using the AEWS system. Use the five-point Likert scale below. Mark your response in the Scale column by writing the corresponding number (1–5). For any statement that does not apply or cannot be observed, please leave a brief remark.
+Likert Scale: 
+1 – Strongly Disagree | 2 – Disagree | 3 – Neutral | 4 – Agree | 5 – Strongly Agree
+
+             					    				Date: 		
+           Name of Respondent and Signature
+
+Testing Area | Indicator | Survey Statements | Scale
+User Authentication and Access Control | Login Reliability | The login system works consistently without errors. | 
+ | Role-Based Access | I can only access features appropriate to my role (Instructor/AMU Staff/Admin/Student). | 
+ | Session Management | The system keeps me logged in appropriately during use. | 
+ | Password Security | The password requirements make the system secure. | 
+ | Logout Functionality | The logout feature works as expected. | 
+File Upload Functionality | Classlist Upload Accuracy | The system correctly uploads and processes classlist files. | 
+ | Gradesheet Upload Accuracy | The system correctly uploads and processes gradesheet files. | 
+ | Attendance Upload Accuracy | The system correctly uploads and processes attendance files. | 
+ | Needs Assessment Upload Accuracy | The system correctly uploads and processes needs assessment files. | 
+ | File Format Validation | The system properly validates file formats (CSV, XLSX, DOCX). | 
+ | Upload Error Handling | The system provides clear error messages when uploads fail. | 
+Student Data Validation | Mismatch Detection | The system correctly identifies mismatches between classlist and uploaded files. | 
+ | Data Integrity Protection | The system prevents data corruption during file uploads. | 
+ | Validation Error Messages | Error messages for data mismatches are clear and helpful. | 
+ | Student Information Accuracy | Student data (ID, name, email) is displayed correctly throughout the system. | 
+ | Duplicate Prevention | The system prevents duplicate student entries. | 
+AI Prediction Accuracy | Risk Assessment Accuracy | The AI accurately identifies students at risk of academic problems. | 
+ | Prediction Relevance | The AI predictions are relevant to actual student performance. | 
+ | Timely Risk Detection | The system identifies at-risk students early enough for intervention. | 
+ | Prediction Consistency | The AI predictions are consistent across different evaluations. | 
+ | AI Response Time | The AI generates predictions within an acceptable time frame. | 
+Automatic Referral System | Referral Trigger Accuracy | Automatic referrals are triggered appropriately based on academic thresholds. | 
+ | Referral Details Accuracy | Referral information includes accurate student details and reasons. | 
+ | Manual Referral Functionality | Manual referral creation works as expected. | 
+ | Referral History Tracking | The system maintains accurate referral history for students. | 
+ | Multiple Instructor Support | Multiple instructors can refer the same student without conflicts. | 
+Email Notification System | Email Delivery Reliability | Notification emails are sent reliably to recipients. | 
+ | Email Content Accuracy | Email content (student info, referral details) is accurate. | 
+ | Credential Email Security | Temporary password emails are sent securely. | 
+ | Welcome Email Functionality | Welcome emails are sent appropriately for new student accounts. | 
+ | Notification Timing | Emails are sent in a timely manner after relevant events. | 
+Dashboard and Reports | Dashboard Loading Speed | The dashboard loads quickly without significant delays. | 
+ | Data Display Accuracy | Student data is displayed accurately in the dashboard. | 
+ | Report Generation Accuracy | PDF reports are generated with correct information. | 
+ | Report Customization | Report filtering and customization work as expected. | 
+ | Navigation Between Views | Moving between different dashboard sections is smooth. | 
+System Performance and Stability | Overall System Speed | The system performs quickly during normal operations. | 
+ | Multi-User Performance | The system performs well when multiple users are accessing it simultaneously. | 
+ | System Stability | The system does not crash or freeze during use. | 
+ | Error Recovery | The system recovers gracefully from errors without data loss. | 
+User Interface and Experience | Interface Clarity | The interface is clear and easy to understand. | 
+ | Navigation Ease | Navigation between features is intuitive. | 
+ | Visual Design Quality | The visual design is professional and appropriate. | 
+ | Help and Documentation | Help information is available and useful when needed. | 
+ | Overall User Satisfaction | Overall Satisfaction | I am satisfied with the overall performance of the AEWS system. | 
+ | System Reliability | I find the system reliable for academic monitoring tasks. | 
+ | Recommendation Likelihood | I would recommend this system to other educational institutions. | 
+ | Meeting Expectations | The system meets my expectations for an academic early warning system. | 

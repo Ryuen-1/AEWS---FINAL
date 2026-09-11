@@ -15,27 +15,34 @@ export default function ProfilePageLayout({
   backButton,
   rightSection,
   saveButtonLabel = 'Save profile',
+  emailVerificationRequired = false,
 }) {
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [contactNumber, setContactNumber] = useState('')
   const [profileImage, setProfileImage] = useState(null)
+  const [imageError, setImageError] = useState('')
   const fileInputRef = useRef(null)
+  const storedName = user?.name || ''
+  const storedFirstName = user?.first_name
+  const storedLastName = user?.last_name
+  const storedEmail = user?.email || ''
+  const storedContact = user?.contact_number || ''
+  const storedImage = user?.profile_image || null
 
   useEffect(() => {
-    if (!user) return
-    const parts = (user.name || '').trim().split(/\s+/)
+    const parts = storedName.trim().split(/\s+/)
     const last = parts.length >= 2 ? parts.pop() : ''
-    const first = parts.length >= 2 ? parts.join(' ') : (user.name ?? '')
-    requestAnimationFrame(() => {
-      setLastName(last)
-      setFirstName(first)
-      setEmail(user.email ?? '')
-      setContactNumber(user.contact_number ?? '')
-      setProfileImage(user.profile_image ?? null)
+    const frame = requestAnimationFrame(() => {
+      setLastName(storedLastName ?? last)
+      setFirstName(storedFirstName ?? parts.join(' '))
+      setEmail(storedEmail)
+      setContactNumber(storedContact)
+      setProfileImage(storedImage)
     })
-  }, [user])
+    return () => cancelAnimationFrame(frame)
+  }, [storedName, storedFirstName, storedLastName, storedEmail, storedContact, storedImage])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -43,6 +50,8 @@ export default function ProfilePageLayout({
     if (!name || !email.trim()) return
     await onSaveProfile({
       name: name || firstName.trim() || lastName.trim(),
+      first_name: firstName.trim(),
+      last_name: lastName.trim(),
       email: email.trim(),
       contact_number: contactNumber.trim(),
       profile_image: profileImage || undefined,
@@ -51,9 +60,16 @@ export default function ProfilePageLayout({
 
   const handleImageChange = (e) => {
     const file = e.target.files?.[0]
-    if (!file || !file.type.startsWith('image/')) return
+    if (!file) return
+    setImageError('')
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) {
+      setImageError('Choose a JPG, PNG, or WebP photo up to 2 MB.')
+      e.target.value = ''
+      return
+    }
     const reader = new FileReader()
     reader.onload = () => setProfileImage(reader.result)
+    reader.onerror = () => setImageError('Unable to read this photo. Please choose it again.')
     reader.readAsDataURL(file)
   }
 
@@ -64,6 +80,8 @@ export default function ProfilePageLayout({
   const normalizedOriginalProfileImage = user?.profile_image ?? null
   const hasChanges =
     normalizedCurrentName !== normalizedOriginalName ||
+    (emailVerificationRequired && storedFirstName != null && firstName.trim() !== storedFirstName) ||
+    (emailVerificationRequired && storedLastName != null && lastName.trim() !== storedLastName) ||
     email.trim() !== normalizedOriginalEmail ||
     contactNumber.trim() !== normalizedOriginalContactNumber ||
     (profileImage ?? null) !== normalizedOriginalProfileImage
@@ -100,7 +118,8 @@ export default function ProfilePageLayout({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={saving}
                   onChange={handleImageChange}
                   className="sr-only"
                 />
@@ -129,8 +148,9 @@ export default function ProfilePageLayout({
                 Change photo
               </button>
               <p className="mt-2 text-[11px] text-slate-400">
-                Choose a new photo, then save your profile.
+                Choose a JPG, PNG, or WebP photo up to 2 MB, then save your profile.
               </p>
+              {imageError && <p role="alert" className="mt-2 text-xs text-red-600">{imageError}</p>}
             </div>
           </div>
 
@@ -142,6 +162,7 @@ export default function ProfilePageLayout({
               </div>
 
               <form onSubmit={handleSubmit} className="p-5 space-y-4">
+                <fieldset disabled={saving} className="space-y-4">
                 {profileError && (
                   <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
                     {profileError}
@@ -159,6 +180,9 @@ export default function ProfilePageLayout({
                     <input
                       type="text"
                       value={firstName}
+                      required={emailVerificationRequired}
+                      maxLength={100}
+                      aria-label="First name"
                       onChange={(e) => setFirstName(e.target.value)}
                       placeholder="First name"
                       className={inputClass}
@@ -169,6 +193,9 @@ export default function ProfilePageLayout({
                     <input
                       type="text"
                       value={lastName}
+                      required={emailVerificationRequired}
+                      maxLength={100}
+                      aria-label="Surname"
                       onChange={(e) => setLastName(e.target.value)}
                       placeholder="Surname"
                       className={inputClass}
@@ -196,12 +223,15 @@ export default function ProfilePageLayout({
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                     <input
                       type="email"
+                      required
+                      aria-label="Email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Enter email"
                       className={`${inputClass} pl-11`}
                     />
                   </div>
+                  {emailVerificationRequired && <p className="mt-2 text-xs leading-5 text-slate-500">Changing your email sends a verification code to the new address. Your current email stays active until you enter the code.</p>}
                 </div>
 
                 <div>
@@ -246,6 +276,7 @@ export default function ProfilePageLayout({
                     )}
                   </button>
                 </div>
+                </fieldset>
               </form>
             </div>
           </div>
