@@ -190,7 +190,7 @@ export default function AdminStudentAccounts() {
   return (
     <div className="space-y-4">
       {error && (
-        <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
+        <div className="field-feedback-enter rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
           <XCircle className="w-4 h-4 flex-shrink-0" />
           {error}
         </div>
@@ -212,7 +212,7 @@ export default function AdminStudentAccounts() {
 
       <div className="rounded-xl border border-slate-200/80 overflow-hidden">
         <ScrollTableContainer>
-          <table className="w-full text-left border-collapse">
+          <table className="table-polish w-full text-left">
             <thead className="sticky top-0 z-10 bg-gray-50/80 border-b border-gray-200">
               <tr>
                 <th className="px-5 py-4 text-[12px] font-semibold text-gray-500 uppercase tracking-wider text-left">Student</th>
@@ -284,7 +284,7 @@ export default function AdminStudentAccounts() {
                             <MoreVertical className="w-4 h-4" />
                           </button>
                           {openMenuId === student.id && (
-                            <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-50">
+                            <div className="soft-enter absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-50">
                               <button
                                 onClick={() => { openDetailModal(student.id); setOpenMenuId(null); }}
                                 className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
@@ -320,7 +320,7 @@ export default function AdminStudentAccounts() {
           className="flex items-center justify-center"
           panelClassName="max-w-[400px]"
         >
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-full max-w-[400px]">
+          <div className="bg-white rounded-2xl shadow-2xl shadow-slate-900/14 border border-slate-200 p-6 w-full max-w-[400px]">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
                 <Trash2 className="w-6 h-6 text-red-600" />
@@ -360,7 +360,7 @@ export default function AdminStudentAccounts() {
           className="flex items-center justify-center"
           panelClassName="max-w-[500px]"
         >
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-[500px] max-h-[80vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl shadow-slate-900/14 border border-slate-200 w-full max-w-[500px] max-h-[80vh] overflow-y-auto">
             <div className="flex items-start justify-between px-6 py-4 border-b border-slate-100">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Student Details</h3>
@@ -387,7 +387,7 @@ export default function AdminStudentAccounts() {
               ) : detailStudent ? (
                 <>
                   {detailSaveSuccess && (
-                    <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700 flex items-center gap-2">
+                    <div className="status-pop rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700 flex items-center gap-2">
                       <CheckCircle className="w-4 h-4" />
                       Student updated successfully
                     </div>

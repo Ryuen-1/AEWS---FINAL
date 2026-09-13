@@ -370,7 +370,7 @@ export default function AmuStaffNeedsAssessments() {
             <p className="text-xs text-slate-500">Student email is auto-generated using the BukSU format: <span className="font-medium text-slate-700">student_id@student.buksu.edu.ph</span>.</p>
 
             <div className="clean-scrollbar overflow-auto rounded-xl border border-slate-200/80">
-              <table className="w-full border-collapse text-left">
+              <table className="table-polish w-full text-left">
                 <thead className="sticky top-0 z-10 border-b border-gray-200 bg-gray-50/80">
                   <tr>
                     <th className="px-5 py-3 text-left text-[12px] font-semibold uppercase tracking-wider text-gray-500">Student</th>

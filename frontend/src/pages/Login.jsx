@@ -229,12 +229,12 @@ export default function Login() {
 
           <form className="space-y-5" onSubmit={handleSignIn}>
             {notice && (
-              <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 font-medium">
+              <div className="field-feedback-enter rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 font-medium">
                 {notice}
               </div>
             )}
             {error && (
-              <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 font-medium">
+              <div className="field-feedback-enter rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 font-medium">
                 {error}
               </div>
             )}
@@ -250,7 +250,7 @@ export default function Login() {
                   className={`w-full pl-12 pr-4 py-3.5 rounded-lg border bg-white outline-none transition-all text-base text-slate-900 placeholder:text-slate-400 shadow-sm focus:shadow-[0_0_0_3px_rgba(37,99,235,0.16),0_8px_20px_rgba(37,99,235,0.14)] ${emailRequired ? 'border-red-300 focus:border-red-500 bg-red-50/30' : 'border-slate-300 focus:border-blue-500'}`}
                 />
               </div>
-              {emailRequired && <p className="mt-1.5 text-sm text-red-600 font-medium">This is required</p>}
+              {emailRequired && <p className="field-feedback-enter mt-1.5 text-sm text-red-600 font-medium">This is required</p>}
             </div>
             <div>
               <label className="block text-base font-medium text-slate-950 mb-2.5">Password</label>
@@ -264,7 +264,7 @@ export default function Login() {
                   className={`w-full pl-12 pr-4 py-3.5 rounded-lg border bg-white outline-none transition-all text-base text-slate-900 placeholder:text-slate-400 shadow-sm focus:shadow-[0_0_0_3px_rgba(37,99,235,0.16),0_8px_20px_rgba(37,99,235,0.14)] ${passwordRequired ? 'border-red-300 focus:border-red-500 bg-red-50/30' : 'border-slate-300 focus:border-blue-500'}`}
                 />
               </div>
-              {passwordRequired && <p className="mt-1.5 text-sm text-red-600 font-medium">This is required</p>}
+              {passwordRequired && <p className="field-feedback-enter mt-1.5 text-sm text-red-600 font-medium">This is required</p>}
               <div className="mt-2.5 text-right">
                 <Link
                   to="/forgot-password"

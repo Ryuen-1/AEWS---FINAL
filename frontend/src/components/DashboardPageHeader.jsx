@@ -21,13 +21,13 @@ export default function DashboardPageHeader({
         glow: 'bg-blue-200/35',
       }
   return (
-    <section className="rounded-xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/40 overflow-hidden">
+    <section className="ui-surface soft-enter rounded-xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/40 overflow-hidden">
       <div className={welcome ? `relative overflow-hidden px-5 py-7 sm:px-7 border-b bg-gradient-to-br ${welcomeTone}` : 'px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/90 to-white'}>
         {welcome && <div aria-hidden="true" className={`pointer-events-none absolute -right-12 -top-16 h-56 w-56 rounded-full border-[30px] ${heroTone.ring}`} />}
         {welcome && HeroIcon && (
           <div className="pointer-events-none absolute right-7 top-7 hidden h-24 w-24 items-center justify-center lg:flex" aria-hidden="true">
             <div className={`absolute h-32 w-32 rounded-full ${heroTone.glow} blur-2xl`} />
-            <div className={`relative flex h-20 w-20 items-center justify-center rounded-2xl border border-slate-200/70 ${heroTone.iconWrap} shadow-lg`}>
+            <div className={`relative flex h-20 w-20 items-center justify-center rounded-2xl border border-slate-200/70 ${heroTone.iconWrap} shadow-lg transition-transform duration-300 hover:scale-[1.03]`}>
               <HeroIcon className="h-9 w-9" strokeWidth={2.1} />
             </div>
           </div>

@@ -163,8 +163,8 @@ export default function PredictionResultsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-      <div className="clean-scrollbar max-h-[82vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+    <div className="modal-overlay-enter fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm">
+      <div className="modal-panel-enter clean-scrollbar max-h-[82vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
         <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Referral details</p>
@@ -181,7 +181,7 @@ export default function PredictionResultsModal({
               <div className="h-12 w-12 animate-spin rounded-full border-4 border-amber-200 border-t-amber-600" />
             </div>
           ) : error ? (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+            <div className="field-feedback-enter rounded-xl border border-red-200 bg-red-50 p-4">
               <div className="flex gap-3">
                 <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
                 <div>
@@ -194,7 +194,7 @@ export default function PredictionResultsModal({
           ) : prediction ? (
             <>
               {prediction.prediction === null && prediction.risk === "Insufficient Data" ? (
-                <div className="rounded-xl border border-red-200 bg-red-50/60 p-4">
+                <div className="field-feedback-enter rounded-xl border border-red-200 bg-red-50/60 p-4">
                   <div className="flex items-start gap-3">
                     <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
                     <div className="space-y-1">
@@ -221,7 +221,7 @@ export default function PredictionResultsModal({
                   </section>
 
                   {isAwaitingNeedsAssessment ? (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+                    <div className="field-feedback-enter rounded-xl border border-amber-200 bg-amber-50/60 p-4">
                       <div className="flex items-start gap-3">
                         <Clock3 className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" />
                         <div className="space-y-1">
@@ -296,7 +296,7 @@ export default function PredictionResultsModal({
                             <h3 className="font-semibold text-slate-900">Outcome</h3>
                             <p className="mt-1 text-sm leading-6 text-slate-600">Choose the AMU outcome for this student.</p>
                           </div>
-                          {supportRouting ? <div className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Saved</div> : null}
+                          {supportRouting ? <div className="status-pop rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Saved</div> : null}
                         </div>
 
                         <div className="mt-4 grid gap-4">
@@ -360,7 +360,7 @@ export default function PredictionResultsModal({
                             </div>
                           ) : null}
 
-                          {routingMessage ? <p className={`text-sm ${routingMessage.includes('successfully') ? 'text-emerald-700' : 'text-red-700'}`}>{routingMessage}</p> : null}
+                          {routingMessage ? <p className={`field-feedback-enter text-sm ${routingMessage.includes('successfully') ? 'text-emerald-700' : 'text-red-700'}`}>{routingMessage}</p> : null}
 
                           <div className="flex justify-end">
                             <button

@@ -207,7 +207,7 @@ export default function PreviousFinalGrades() {
             <div className="p-6 text-sm text-slate-500 text-center">No previous final grades uploaded yet for this class.</div>
           ) : (
             <ScrollTableContainer>
-              <table className="w-full text-sm">
+              <table className="table-polish w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
                   <tr>
                     <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Student No.</th>

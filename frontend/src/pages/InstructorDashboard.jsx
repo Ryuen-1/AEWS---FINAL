@@ -46,14 +46,14 @@ function CourseCard({ course, onViewDetails, onArchive, archisingId }) {
 
   return (
     <div
-      className={`group flex items-center justify-between gap-3 rounded-lg px-3.5 py-2.5 transition-[background-color,padding] hover:bg-slate-50/80 ${
+      className={`ui-hover-lift group flex items-center justify-between gap-3 rounded-lg px-3.5 py-2.5 transition-[background-color,padding,box-shadow,transform] hover:bg-slate-50/90 hover:shadow-sm ${
         showActions && !isArchiving ? 'pb-14' : ''
       }`}
     >
       <div className="flex-1 min-w-0">
         <div className="flex flex-1 items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0 ring-1 ring-blue-100">
+            <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0 ring-1 ring-blue-100 transition-transform duration-200 group-hover:scale-105">
               <BookOpen className="w-3.5 h-3.5" />
             </div>
             <div className="min-w-0">
@@ -353,10 +353,10 @@ export default function InstructorDashboard() {
                     { title: 'Prepare section reports', text: 'Review and export the available records for a class section.', action: 'Open reports', icon: FileSpreadsheet, onClick: () => navigate('/instructor/reports') },
                   ].map((item) => {
                     const ShortcutIcon = item.icon
-                    return <div key={item.title} className="flex flex-col rounded-xl border border-slate-200 bg-white p-4"><ShortcutIcon className="mb-3 h-5 w-5 text-blue-600" aria-hidden="true" /><h3 className="text-sm font-semibold text-slate-900">{item.title}</h3><p className="mt-2 mb-4 text-xs leading-5 text-slate-600">{item.text}</p><button type="button" onClick={item.onClick} className="mt-auto inline-flex items-center gap-1 self-start rounded text-xs font-semibold text-blue-700 hover:text-blue-900 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-600">{item.action}<ChevronRight className="h-4 w-4" aria-hidden="true" /></button></div>
+                    return <div key={item.title} className="ui-hover-lift flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/40 hover:border-blue-200 hover:shadow-md hover:shadow-blue-100/60"><ShortcutIcon className="mb-3 h-5 w-5 text-blue-600 transition-transform duration-200" aria-hidden="true" /><h3 className="text-sm font-semibold text-slate-900">{item.title}</h3><p className="mt-2 mb-4 text-xs leading-5 text-slate-600">{item.text}</p><button type="button" onClick={item.onClick} className="mt-auto inline-flex items-center gap-1 self-start rounded text-xs font-semibold text-blue-700 hover:text-blue-900 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-600">{item.action}<ChevronRight className="h-4 w-4" aria-hidden="true" /></button></div>
                   })}
                 </section>
-                <div id="instructor-class-workspace" className="scroll-mt-4 rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3">
+                <div id="instructor-class-workspace" className="ui-surface scroll-mt-4 rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
                   <h3 className="text-sm font-semibold text-slate-900">Your teaching overview</h3>
                   <p className="mt-1 text-xs leading-5 text-slate-600">{classesLoading ? 'Loading your class summary…' : classesError ? 'Your class summary is currently unavailable.' : classesList.length === 0 ? 'Add your first class to start keeping grades, attendance, and student records together.' : `${classesList.length} active class${classesList.length === 1 ? '' : 'es'} with ${totalStudents} student enrollments. Select a class below to continue your work.`}</p>
                 </div>
@@ -394,7 +394,7 @@ export default function InstructorDashboard() {
                     <div className="space-y-2">
                       <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Overview</h3>
                       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                        <div className={`rounded-lg p-3 flex items-center gap-2.5 transition-colors ${colorClasses.gray}`}>
+                        <div className={`ui-hover-lift rounded-lg p-3 flex items-center gap-2.5 shadow-sm shadow-slate-200/40 transition-colors ${colorClasses.gray}`}>
                           <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 ring-1 ring-blue-100">
                             <BookOpen className="w-4 h-4" />
                           </div>
@@ -403,7 +403,7 @@ export default function InstructorDashboard() {
                             <p className="text-[11px] font-medium text-slate-600">Total Classes</p>
                           </div>
                         </div>
-                        <div className={`rounded-lg p-3 flex items-center gap-2.5 transition-colors ${colorClasses.gray}`}>
+                        <div className={`ui-hover-lift rounded-lg p-3 flex items-center gap-2.5 shadow-sm shadow-slate-200/40 transition-colors ${colorClasses.gray}`}>
                           <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 ring-1 ring-slate-200/80">
                             <UsersIcon className="w-4 h-4" />
                           </div>
@@ -419,7 +419,7 @@ export default function InstructorDashboard() {
 
                 {/* Class list */}
                 {!classesLoading && !classesError && filteredClasses.length > 0 && (
-                  <ul className="divide-y divide-slate-100 rounded-lg overflow-visible border border-slate-100" aria-label="Class list">
+                  <ul className="divide-y divide-slate-100 rounded-lg overflow-visible border border-slate-100 bg-white/70 shadow-sm shadow-slate-200/40" aria-label="Class list">
                     {filteredClasses.map((course) => (
                       <li key={course.id}>
                         <CourseCard
@@ -473,7 +473,7 @@ export default function InstructorDashboard() {
             {/* Add Class Modal */}
             {showAddClassModal && createPortal(
               <div
-                className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+                className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="add-class-title"
@@ -481,7 +481,7 @@ export default function InstructorDashboard() {
                   if (e.target === e.currentTarget && !addClassSubmitting) handleCloseModal()
                 }}
               >
-                <div className="w-full max-w-md bg-white rounded-2xl shadow-xl shadow-slate-900/10 p-6" onClick={(e) => e.stopPropagation()}>
+                <div className="soft-enter w-full max-w-md bg-white rounded-2xl shadow-2xl shadow-slate-900/18 p-6" onClick={(e) => e.stopPropagation()}>
                   {uploadStage === 'upload' && (
                     <>
                       <h3 id="add-class-title" className="mb-4 text-lg font-bold text-slate-900">Add Class</h3>
@@ -493,7 +493,7 @@ export default function InstructorDashboard() {
                         <div
                           onDragOver={handleDragOver}
                           onDrop={handleDrop}
-                          className="relative border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer bg-slate-50/50"
+                          className="ui-hover-lift relative border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer bg-slate-50/50 hover:bg-blue-50/45"
                           onClick={handleUploadClick}
                         >
                           <input
@@ -644,7 +644,7 @@ export default function InstructorDashboard() {
             {/* Upload Loading Overlay */}
             {addClassSubmitting && createPortal(
               <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center">
-                <div className="bg-white rounded-xl shadow-2xl p-8 flex flex-col items-center gap-4">
+                <div className="soft-enter bg-white rounded-xl shadow-2xl p-8 flex flex-col items-center gap-4">
                   <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
                   <p className="text-lg font-semibold text-slate-900">Creating class...</p>
                   <p className="text-sm text-slate-600">Please wait while we process your class list.</p>

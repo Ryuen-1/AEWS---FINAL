@@ -84,7 +84,7 @@ export default function StudentPreviewModal({
 
               {/* Students Table */}
               <div className="clean-scrollbar overflow-x-auto border border-slate-200 rounded-lg">
-                <table className="w-full text-xs">
+                <table className="table-polish w-full text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
                       <th className="px-3 py-2.5 text-left font-semibold text-slate-700">#</th>

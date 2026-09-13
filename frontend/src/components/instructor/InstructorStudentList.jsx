@@ -103,7 +103,7 @@ export default function InstructorStudentList() {
         {!loading && !error && (
           <div className="rounded-xl border border-slate-200/80 overflow-hidden">
             <ScrollTableContainer>
-              <table className="w-full text-left">
+              <table className="table-polish w-full text-left">
                 <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Student</th>

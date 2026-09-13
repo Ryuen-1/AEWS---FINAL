@@ -575,7 +575,7 @@ export default function ClassDetails() {
                           </h3>
                         </div>
                         <ScrollTableContainer size="regular">
-                          <table className="w-full table-fixed text-left">
+                          <table className="table-polish w-full table-fixed text-left">
                             <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
                               <tr>
                                 <th className="w-[36%] px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Name</th>
@@ -629,7 +629,7 @@ export default function ClassDetails() {
                           </h3>
                         </div>
                         <ScrollTableContainer size="regular">
-                          <table className="w-full table-fixed text-left">
+                          <table className="table-polish w-full table-fixed text-left">
                             <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
                               <tr>
                                 <th className="w-[36%] px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Name</th>

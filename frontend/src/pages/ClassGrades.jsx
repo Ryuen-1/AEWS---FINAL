@@ -434,7 +434,7 @@ export default function ClassGrades() {
               className={activeView === 'topics-to-watch' ? 'max-h-[32rem] overflow-auto' : ''}
             >
               {activeView === 'midterm-grade' ? (
-                <table className="w-full text-sm">
+                <table className="table-polish w-full text-sm">
                   <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
                     <tr>
                       <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Student No.</th>
@@ -466,7 +466,7 @@ export default function ClassGrades() {
               ) : (
                 <>
                   <table
-                    className="table-fixed text-sm border-separate border-spacing-0"
+                    className="table-polish table-fixed text-sm border-separate border-spacing-0"
                     style={{ minWidth: `${topicsTableWidth}px`, width: `${topicsTableWidth}px` }}
                   >
                     <colgroup>

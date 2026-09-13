@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 export default function HeaderAwareOverlay({
   children,
@@ -17,9 +18,9 @@ export default function HeaderAwareOverlay({
     return () => document.body.classList.remove('modal-open')
   }, [modal])
   
-  const classes = fullScreen 
-    ? ['fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6', className].filter(Boolean).join(' ')
-    : ['fixed inset-x-0 bottom-0 z-20 flex items-center justify-center p-4 sm:p-6', className].filter(Boolean).join(' ')
+  const classes = fullScreen
+    ? ['modal-overlay-enter fixed inset-0 z-[300] flex items-center justify-center p-4 sm:p-6', className].filter(Boolean).join(' ')
+    : ['modal-overlay-enter fixed inset-x-0 bottom-0 z-20 flex items-center justify-center p-4 sm:p-6', className].filter(Boolean).join(' ')
 
   const panelClasses = fullScreen
     ? ['mx-auto flex flex-col overflow-hidden', panelClassName].filter(Boolean).join(' ')
@@ -37,7 +38,7 @@ export default function HeaderAwareOverlay({
     ? { maxHeight: 'calc(100vh - 2rem)' }
     : { maxHeight: 'calc(100vh - var(--dashboard-header-height, 0px) - 1rem)' }
 
-  return (
+  const overlay = (
     <div
       className={classes}
       style={style}
@@ -51,11 +52,17 @@ export default function HeaderAwareOverlay({
         aria-hidden="true"
       />
       <div
-        className={panelClasses + ' relative z-20'}
+        className={panelClasses + ' modal-panel-enter relative z-20'}
         style={panelStyle}
       >
         <div className={contentClasses}>{children}</div>
       </div>
     </div>
   )
+
+  if (fullScreen && typeof document !== 'undefined') {
+    return createPortal(overlay, document.body)
+  }
+
+  return overlay
 }

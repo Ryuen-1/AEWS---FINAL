@@ -218,12 +218,12 @@ export default function DashboardLayout({
     const btnActive = isInstructor ? 'bg-slate-100 text-slate-800' : 'bg-gray-100 text-gray-800'
     const roleHomeLabel = isAdmin ? 'System workspace' : isAmuStaff ? 'Support workspace' : 'Teaching workspace'
   const notifBtnClass = isAdmin
-    ? 'relative inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200/80 bg-white/90 text-gray-700 hover:bg-gray-50 hover:border-gray-300 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2'
+    ? 'ui-hover-lift relative inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200/80 bg-white/90 text-gray-700 hover:bg-gray-50 hover:border-gray-300 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2'
     : isAmuStaff
-      ? 'relative inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-teal-200/70 bg-teal-50/50 text-teal-800 hover:bg-teal-100/60 hover:border-teal-300/70 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2'
-      : 'relative inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-blue-200/70 bg-blue-50/50 text-blue-800 hover:bg-blue-100/60 hover:border-blue-300/70 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
+      ? 'ui-hover-lift relative inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-teal-200/70 bg-teal-50/50 text-teal-800 hover:bg-teal-100/60 hover:border-teal-300/70 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2'
+      : 'ui-hover-lift relative inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-blue-200/70 bg-blue-50/50 text-blue-800 hover:bg-blue-100/60 hover:border-blue-300/70 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
   const navBtnClassFor = (active = false) => {
-    const base = 'w-full min-h-[48px] flex items-center gap-3 rounded-xl border px-3 py-2.5 text-[13px] font-medium transition-all duration-200'
+    const base = 'ui-hover-lift w-full min-h-[48px] flex items-center gap-3 rounded-xl border px-3 py-2.5 text-[13px] font-medium transition-all duration-200'
     if (active) {
       return isAdmin
         ? `${base} border-gray-700 bg-gray-700 text-white shadow-md shadow-gray-700/20`
@@ -254,7 +254,7 @@ export default function DashboardLayout({
       <div className="absolute top-1/4 -left-20 w-96 h-96 rounded-full bg-[rgb(var(--role-accent-glow))]/20 blur-3xl" aria-hidden="true" />
       <div className="absolute bottom-1/4 -right-20 w-[28rem] h-[28rem] rounded-full bg-[rgb(var(--role-accent))]/12 blur-3xl" aria-hidden="true" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[40rem] h-[40rem] rounded-full bg-white/30 blur-3xl" aria-hidden="true" />
-      <header ref={headerRef} className="relative z-30 sticky top-0 bg-white/82 backdrop-blur-md border-b border-[rgb(var(--role-accent))]/15 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+      <header ref={headerRef} className="relative z-30 sticky top-0 bg-white/86 backdrop-blur-xl border-b border-[rgb(var(--role-accent))]/15 shadow-[0_12px_32px_rgba(15,23,42,0.06)]">
         <div className="max-w-[1680px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           {/* Brand / identity */}
           <div className="flex items-center gap-2.5 min-w-0">
@@ -328,7 +328,7 @@ export default function DashboardLayout({
               : isAmuStaff
                 ? 'border-teal-100/70 bg-gradient-to-b from-teal-50/65 via-white/85 to-white'
                 : 'border-blue-100/70 bg-gradient-to-b from-blue-50/65 via-white/85 to-white'
-          } py-3.5 px-3 flex-none h-[calc(100vh-var(--dashboard-header-height))] max-h-[calc(100vh-var(--dashboard-header-height))] overflow-hidden backdrop-blur-sm`}>
+          } py-3.5 px-3 flex-none h-[calc(100vh-var(--dashboard-header-height))] max-h-[calc(100vh-var(--dashboard-header-height))] overflow-hidden backdrop-blur-xl shadow-[12px_0_34px_rgba(15,23,42,0.04)]`}>
             <nav className="flex h-full min-h-0 flex-col clean-scrollbar overflow-y-auto pr-1" aria-label="Page navigation">
               <div className="space-y-1.5">
                 {normalizedNavItems.map((item) => {
@@ -391,7 +391,7 @@ export default function DashboardLayout({
         {/* Main Content */}
         <main className="clean-scrollbar flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
           <div className="max-w-[1680px] mx-auto px-3 sm:px-4 lg:px-5 py-4 sm:py-5">
-            <div className="mx-auto w-full max-w-[1200px] rounded-2xl border border-[rgb(var(--role-accent))]/12 bg-white/60 p-4 shadow-sm shadow-[rgb(var(--role-accent))]/5 ring-1 ring-white/65 sm:p-5 lg:p-6">
+            <div className="ui-surface mx-auto w-full max-w-[1200px] rounded-2xl border border-[rgb(var(--role-accent))]/12 bg-white/68 p-4 shadow-sm shadow-[rgb(var(--role-accent))]/5 ring-1 ring-white/75 backdrop-blur-sm sm:p-5 lg:p-6">
               {children}
             </div>
           </div>

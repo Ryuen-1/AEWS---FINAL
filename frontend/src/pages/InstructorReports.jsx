@@ -530,7 +530,7 @@ export default function InstructorReports() {
       subtitle={instructorSubtitle}
       navItems={[
         { label: 'Classes', icon: BookOpen, active: false, onClick: () => navigate('/instructor') },
-        { label: 'Students', icon: Users, active: false, onClick: () => navigate('/instructor', { state: { tab: 'students' } }) },
+        { label: 'Students', icon: Users, active: false, onClick: () => navigate('/instructor?tab=students') },
         { label: 'Reports', icon: FileSpreadsheet, active: true, onClick: () => navigate('/instructor/reports') },
       ]}
     >
@@ -655,7 +655,7 @@ export default function InstructorReports() {
                     </span>
                   </div>
                   <div className="clean-scrollbar max-h-[32rem] overflow-auto">
-                    <table className="w-full text-left min-w-[480px]">
+                    <table className="table-polish w-full text-left min-w-[480px]">
                       <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
                         <tr>
                           {['Student ID', 'Student Name', 'Attendance', 'Midterm', 'Referred'].map((header) => (

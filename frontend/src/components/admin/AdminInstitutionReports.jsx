@@ -184,7 +184,7 @@ export default function AdminInstitutionReports() {
               <div>
                 <h4 className="text-sm font-semibold text-slate-900 mb-3">At-Risk Students (Top 20)</h4>
                 <div className="border border-slate-200 rounded-lg overflow-hidden">
-                  <table className="w-full text-sm">
+                  <table className="table-polish w-full text-sm">
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
                         <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Student Email</th>

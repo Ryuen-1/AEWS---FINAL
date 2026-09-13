@@ -46,7 +46,7 @@ export default function AttendanceTableView({ students, format = 'monthly' }) {
     return (
       <div className="space-y-4">
         <ScrollTableContainer>
-          <table className="w-full text-sm">
+          <table className="table-polish w-full text-sm">
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-slate-200 bg-slate-50">
                 <th className="px-4 py-3 text-left font-semibold text-slate-700 sticky left-0 bg-slate-50 z-10">ID</th>
@@ -100,7 +100,7 @@ export default function AttendanceTableView({ students, format = 'monthly' }) {
   return (
     <div className="space-y-4">
       <ScrollTableContainer>
-        <table className="w-full text-sm">
+        <table className="table-polish w-full text-sm">
           <thead className="sticky top-0 z-10">
             <tr className="border-b border-slate-200 bg-slate-50">
               <th className="px-4 py-3 text-left font-semibold text-slate-700 sticky left-0 bg-slate-50 z-10">ID</th>

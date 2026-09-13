@@ -32,7 +32,7 @@ function Toast({ toast, onRemove }) {
 
   return (
     <div
-      className={`flex items-start gap-3 p-4 rounded-lg border shadow-lg min-w-[300px] max-w-md animate-in slide-in-from-right fade-in duration-300 ${bgColors[toast.type] || bgColors.info}`}
+      className={`soft-enter flex items-start gap-3 p-4 rounded-xl border shadow-xl shadow-slate-900/10 min-w-[300px] max-w-md backdrop-blur-sm ${bgColors[toast.type] || bgColors.info}`}
     >
       <div className="flex-shrink-0 mt-0.5">{icons[toast.type] || icons.info}</div>
       <div className="flex-1 min-w-0">
@@ -40,7 +40,8 @@ function Toast({ toast, onRemove }) {
       </div>
       <button
         onClick={onRemove}
-        className="flex-shrink-0 text-slate-400 hover:text-slate-600 transition-colors"
+        className="flex-shrink-0 rounded-md p-1 text-slate-400 hover:bg-white/55 hover:text-slate-600 transition-colors"
+        aria-label="Dismiss notification"
       >
         <X className="w-4 h-4" />
       </button>

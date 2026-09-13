@@ -77,8 +77,8 @@ export default function ReferralDetailModal({ refId, onClose }) {
   const displayReasons = buildDisplayReasons(referral)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="clean-scrollbar w-full max-w-xl max-h-[80vh] overflow-y-auto rounded-2xl bg-white shadow-xl border border-slate-200/80">
+    <div className="modal-overlay-enter fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+      <div className="modal-panel-enter clean-scrollbar w-full max-w-xl max-h-[80vh] overflow-y-auto rounded-2xl bg-white shadow-2xl shadow-slate-900/18 border border-slate-200/80">
         {/* Header */}
         <div className="flex items-start justify-between px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-teal-50 via-sky-50 to-white">
           <div>
@@ -101,13 +101,13 @@ export default function ReferralDetailModal({ refId, onClose }) {
             <div className="animate-spin rounded-full h-6 w-6 border-2 border-slate-300 border-t-slate-500" />
           </div>
         ) : error ? (
-          <div className="m-5 rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+          <div className="field-feedback-enter m-5 rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         ) : referral ? (
           <div className="px-5 py-4 space-y-5">
             {/* Student & referral summary */}
-            <div className="space-y-2 rounded-xl border border-teal-100 bg-teal-50/60 px-4 py-3">
+            <div className="ui-surface space-y-2 rounded-xl border border-teal-100 bg-teal-50/60 px-4 py-3">
               <p className="text-sm font-semibold text-slate-900">{referral.student_name}</p>
               <p className="text-xs text-slate-600">
                 ID: {referral.student_id || referral.student_email || '—'}
@@ -142,11 +142,11 @@ export default function ReferralDetailModal({ refId, onClose }) {
 
             {/* Academic metrics */}
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 text-sm text-slate-700">
-              <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 border border-slate-100">
+              <div className="ui-hover-lift flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 border border-slate-100">
                 <span className="text-xs text-slate-500">Midterm grade</span>
                 <span className="font-medium text-slate-900">{referral.midterm_grade || '—'}</span>
               </div>
-              <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 border border-slate-100">
+              <div className="ui-hover-lift flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 border border-slate-100">
                 <span className="text-xs text-slate-500">Attendance</span>
                 <span className="font-medium text-slate-900">
                   {typeof referral.attendance === 'number'

@@ -21,7 +21,7 @@ export default function StudentLayout({ title = 'Student Dashboard', subtitle = 
   ]
 
   const navClass = (active = false) => {
-    const base = 'w-full min-h-[48px] flex items-center gap-3 rounded-xl border px-3 py-2.5 text-[13px] font-semibold transition-all duration-200'
+    const base = 'ui-hover-lift w-full min-h-[48px] flex items-center gap-3 rounded-xl border px-3 py-2.5 text-[13px] font-semibold transition-all duration-200'
     return active
       ? `${base} border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/25`
       : `${base} border-transparent bg-white/45 text-slate-700 hover:bg-blue-50/80 hover:border-blue-200 hover:text-blue-800 hover:shadow-sm`
@@ -33,7 +33,7 @@ export default function StudentLayout({ title = 'Student Dashboard', subtitle = 
       <div className="absolute -left-20 top-1/4 h-96 w-96 rounded-full bg-blue-300/20 blur-3xl" aria-hidden="true" />
       <div className="absolute -right-20 bottom-1/4 h-[28rem] w-[28rem] rounded-full bg-sky-400/12 blur-3xl" aria-hidden="true" />
 
-      <header className="relative z-30 border-b border-blue-100/80 bg-white/85 shadow-sm backdrop-blur-md">
+      <header className="relative z-30 border-b border-blue-100/80 bg-white/88 shadow-[0_12px_32px_rgba(15,23,42,0.06)] backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1680px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-2.5">
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-600/20 ring-2 ring-blue-200 ring-offset-2 ring-offset-white/80">
@@ -52,9 +52,9 @@ export default function StudentLayout({ title = 'Student Dashboard', subtitle = 
       </header>
 
       <div className="relative z-10 flex h-[calc(100vh-65px)]">
-        <aside className="h-full w-52 flex-none border-r border-blue-100/80 bg-gradient-to-b from-blue-50/70 via-white/90 to-white px-3 py-3.5 backdrop-blur-sm">
+        <aside className="h-full w-52 flex-none border-r border-blue-100/80 bg-gradient-to-b from-blue-50/70 via-white/90 to-white px-3 py-3.5 shadow-[12px_0_34px_rgba(15,23,42,0.04)] backdrop-blur-xl">
           <nav className="flex h-full min-h-0 flex-col overflow-y-auto pr-1" aria-label="Student navigation">
-            <div className="mb-4 rounded-2xl border border-blue-100 bg-white/75 p-3 shadow-sm">
+            <div className="ui-surface mb-4 rounded-2xl border border-blue-100 bg-white/78 p-3 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
                   <User className="h-5 w-5" />
@@ -86,7 +86,7 @@ export default function StudentLayout({ title = 'Student Dashboard', subtitle = 
 
         <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
           <div className="mx-auto max-w-[1680px] px-3 py-4 sm:px-4 sm:py-5 lg:px-5">
-            <div className="mx-auto w-full max-w-[1200px] rounded-2xl border border-blue-100/70 bg-white/65 p-4 shadow-sm shadow-blue-500/5 ring-1 ring-white/70 sm:p-5 lg:p-6">
+            <div className="ui-surface mx-auto w-full max-w-[1200px] rounded-2xl border border-blue-100/70 bg-white/70 p-4 shadow-sm shadow-blue-500/5 ring-1 ring-white/75 backdrop-blur-sm sm:p-5 lg:p-6">
               {children}
             </div>
           </div>

@@ -142,7 +142,7 @@ export default function AmuStaffReferrals() {
 
         <div className="rounded-xl border border-slate-200/80 overflow-hidden">
           <ScrollTableContainer>
-            <table className="w-full text-left border-collapse">
+            <table className="table-polish w-full text-left">
               <thead className="sticky top-0 z-10 bg-gray-50/80 border-b border-gray-200">
                 <tr>
                   <th className="px-5 py-4 text-[12px] font-semibold text-gray-500 uppercase tracking-wider text-left">Student</th>

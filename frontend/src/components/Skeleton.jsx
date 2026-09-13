@@ -4,20 +4,20 @@
 
 export function ClassCardSkeleton() {
   return (
-    <div className="animate-pulse">
+    <div aria-hidden="true">
       <div className="flex items-center justify-between gap-3 rounded-lg px-3.5 py-2.5 bg-slate-50">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-slate-200 flex-shrink-0" />
+            <div className="w-9 h-9 rounded-lg skeleton-shimmer flex-shrink-0" />
             <div className="min-w-0 flex-1">
-              <div className="h-4 bg-slate-200 rounded w-3/4 mb-2" />
-              <div className="h-3 bg-slate-200 rounded w-1/2" />
+              <div className="h-4 skeleton-shimmer rounded w-3/4 mb-2" />
+              <div className="h-3 skeleton-shimmer rounded w-1/2" />
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="h-8 w-20 bg-slate-200 rounded-lg" />
-          <div className="w-9 h-9 rounded-lg bg-slate-200" />
+          <div className="h-8 w-20 skeleton-shimmer rounded-lg" />
+          <div className="w-9 h-9 rounded-lg skeleton-shimmer" />
         </div>
       </div>
     </div>
@@ -36,10 +36,10 @@ export function ClassListSkeleton({ count = 5 }) {
 
 export function TableRowSkeleton({ columns = 4 }) {
   return (
-    <tr className="animate-pulse">
+    <tr aria-hidden="true">
       {Array.from({ length: columns }).map((_, i) => (
         <td key={i} className="px-4 py-3">
-          <div className="h-4 bg-slate-200 rounded w-full" />
+          <div className="h-4 skeleton-shimmer rounded w-full" />
         </td>
       ))}
     </tr>
@@ -58,20 +58,20 @@ export function TableSkeleton({ rows = 5, columns = 4 }) {
 
 export function StudentCardSkeleton() {
   return (
-    <div className="animate-pulse">
+    <div aria-hidden="true">
       <div className="bg-white rounded-lg border border-slate-200 p-4">
         <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-full bg-slate-200 flex-shrink-0" />
+          <div className="w-12 h-12 rounded-full skeleton-shimmer flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <div className="h-5 bg-slate-200 rounded w-1/2 mb-2" />
-            <div className="h-4 bg-slate-200 rounded w-3/4 mb-2" />
-            <div className="h-3 bg-slate-200 rounded w-1/3" />
+            <div className="h-5 skeleton-shimmer rounded w-1/2 mb-2" />
+            <div className="h-4 skeleton-shimmer rounded w-3/4 mb-2" />
+            <div className="h-3 skeleton-shimmer rounded w-1/3" />
           </div>
         </div>
         <div className="mt-4 grid grid-cols-3 gap-4">
-          <div className="h-8 bg-slate-200 rounded" />
-          <div className="h-8 bg-slate-200 rounded" />
-          <div className="h-8 bg-slate-200 rounded" />
+          <div className="h-8 skeleton-shimmer rounded" />
+          <div className="h-8 skeleton-shimmer rounded" />
+          <div className="h-8 skeleton-shimmer rounded" />
         </div>
       </div>
     </div>
@@ -80,12 +80,12 @@ export function StudentCardSkeleton() {
 
 export function DashboardStatsSkeleton() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" aria-hidden="true">
       {Array.from({ length: 4 }).map((_, i) => (
         <div key={i} className="bg-white rounded-lg border border-slate-200 p-6">
-          <div className="h-4 bg-slate-200 rounded w-1/3 mb-4" />
-          <div className="h-8 bg-slate-200 rounded w-1/2 mb-2" />
-          <div className="h-3 bg-slate-200 rounded w-1/4" />
+          <div className="h-4 skeleton-shimmer rounded w-1/3 mb-4" />
+          <div className="h-8 skeleton-shimmer rounded w-1/2 mb-2" />
+          <div className="h-3 skeleton-shimmer rounded w-1/4" />
         </div>
       ))}
     </div>
@@ -94,15 +94,15 @@ export function DashboardStatsSkeleton() {
 
 export function ButtonSkeleton({ width = 'w-20' }) {
   return (
-    <div className={`animate-pulse h-10 ${width} bg-slate-200 rounded-lg`} />
+    <div className={`h-10 ${width} skeleton-shimmer rounded-lg`} aria-hidden="true" />
   )
 }
 
 export function PageHeaderSkeleton() {
   return (
-    <div className="animate-pulse mb-6">
-      <div className="h-8 bg-slate-200 rounded w-1/3 mb-2" />
-      <div className="h-4 bg-slate-200 rounded w-1/2" />
+    <div className="mb-6" aria-hidden="true">
+      <div className="h-8 skeleton-shimmer rounded w-1/3 mb-2" />
+      <div className="h-4 skeleton-shimmer rounded w-1/2" />
     </div>
   )
 }

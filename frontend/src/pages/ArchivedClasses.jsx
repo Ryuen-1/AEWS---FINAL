@@ -183,7 +183,7 @@ export default function ArchivedClasses() {
       subtitle={user ? [user.name, user.college].filter(Boolean).join(' - ') || 'Instructor' : 'Instructor'}
       navItems={[
         { label: 'Classes', icon: BookOpen, active: false, onClick: () => navigate('/instructor') },
-        { label: 'Students', icon: Users, active: false, onClick: () => navigate('/instructor', { state: { tab: 'students' } }) },
+        { label: 'Students', icon: Users, active: false, onClick: () => navigate('/instructor?tab=students') },
         { label: 'Reports', icon: FileSpreadsheet, active: false, onClick: () => navigate('/instructor/reports') },
       ]}
     >

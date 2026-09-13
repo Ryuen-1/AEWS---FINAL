@@ -40,7 +40,7 @@ export default function NotificationsPopover({
   const displayList = notifications.slice(0, 8)
 
   return (
-    <div className="w-[380px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden flex flex-col max-h-[420px]">
+    <div className="soft-enter w-[380px] max-w-[calc(100vw-2rem)] bg-white/96 rounded-2xl border border-gray-200 shadow-2xl shadow-slate-900/12 overflow-hidden flex flex-col max-h-[420px] backdrop-blur-xl">
       <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-shrink-0">
         <h2 className="font-semibold text-gray-900 text-base">Notifications</h2>
         <div className="flex items-center gap-3">
@@ -91,7 +91,7 @@ export default function NotificationsPopover({
               return (
                 <li key={`${n.id || 'notification'}-${n.time || 'time'}-${index}`}>
                   <div
-                    className={`group flex gap-3 px-4 py-3 transition-colors ${
+                    className={`group flex gap-3 px-4 py-3 transition-[background-color,transform] hover:-translate-y-px ${
                       !n.read ? styles.accentBg : 'hover:bg-gray-50/80'
                     }`}
                   >
