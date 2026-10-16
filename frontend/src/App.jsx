@@ -19,6 +19,7 @@ import StudentNeedsAssessment from './pages/StudentNeedsAssessment'
 import StudentLogin from './pages/StudentLogin'
 import StudentDashboard from './pages/StudentDashboard'
 import StudentProfile from './pages/StudentProfile'
+import StudentProfileCompletion from './pages/StudentProfileCompletion'
 import Help from './pages/Help'
 import NotFound from './pages/NotFound'
 import InstructorDashboard from './pages/InstructorDashboard'
@@ -84,6 +85,7 @@ export default function App() {
                   <Route path="/student-login" element={<StudentLogin />} />
                   <Route path="/student-dashboard" element={<StudentDashboard />} />
                   <Route path="/student-profile" element={<StudentProfile />} />
+                  <Route path="/student/complete-profile" element={<StudentProfileCompletion />} />
                   <Route path="/instructor" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorDashboard /></ProtectedRoute>} />
                   <Route path="/instructor/reports" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorReports /></ProtectedRoute>} />
                   <Route path="/instructor/settings" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorSettings /></ProtectedRoute>} />

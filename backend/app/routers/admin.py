@@ -280,10 +280,16 @@ def get_student_by_email(student_identifier: str):
                 "lms_activity": e.get("lms_activity"),
             })
         first = enrollments[0]
+        student_doc = db.students.find_one({"email": (first.get("student_email") or "").strip().lower()})
+        if not student_doc and first.get("student_id"):
+            student_doc = db.students.find_one({"id_number": first.get("student_id")})
         return {
             "student_email": first.get("student_email"),
             "student_id": first.get("student_id"),
             "student_name": first.get("student_name"),
+            "college": (student_doc or {}).get("college") or "",
+            "program": (student_doc or {}).get("program") or "",
+            "year_level": (student_doc or {}).get("year_level") or "",
             "enrollments": rows,
         }
     except ServerSelectionTimeoutError:

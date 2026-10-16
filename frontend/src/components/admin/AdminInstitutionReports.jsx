@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
-import { FileText, Download, Eye } from 'lucide-react'
+import { FileText, Download } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { downloadAdminReport, previewAdminReport, getAdminGeneralReportData } from '../../api'
 import { sortStudentsByName } from '../../lib/studentSort'
+import { downloadReportDocx, downloadReportExcel } from '../../utils/reportExport'
 
 export default function AdminInstitutionReports() {
   const [downloading, setDownloading] = useState(false)
@@ -11,6 +13,7 @@ export default function AdminInstitutionReports() {
   const [reportData, setReportData] = useState(null)
   const [showPdfModal, setShowPdfModal] = useState(false)
   const [pdfHtmlContent, setPdfHtmlContent] = useState('')
+  const [exportFormat, setExportFormat] = useState('csv')
 
   useEffect(() => {
     loadReportData()
@@ -56,6 +59,41 @@ export default function AdminInstitutionReports() {
     }
   }
 
+  const handleExport = async () => {
+    if (exportFormat === 'csv') return handleCsvDownload()
+    if (exportFormat === 'pdf') return handlePdfPreview()
+    if (!reportData) return
+
+    const payload = {
+      filename: 'institution-general-report',
+      title: 'Institution Performance Report',
+      summary: [
+        { label: 'Total Enrollments', value: reportData.summary?.total_enrollments ?? 0 },
+        { label: 'Total Sections', value: reportData.summary?.total_sections ?? 0 },
+        { label: 'Total Instructors', value: reportData.summary?.total_instructors ?? 0 },
+        { label: 'Students at Risk', value: reportData.summary?.students_at_risk ?? 0 },
+        { label: 'Referred to AMU', value: reportData.summary?.referred_to_amu ?? 0 },
+      ],
+      columns: [
+        { key: 'student_email', label: 'Student Email' },
+        { key: 'prediction_label', label: 'Prediction' },
+        { key: 'course', label: 'Course' },
+        { key: 'instructor', label: 'Instructor' },
+      ],
+      rows: sortStudentsByName(reportData.at_risk_rows || []),
+    }
+    setError(null)
+    setDownloading(true)
+    try {
+      if (exportFormat === 'docx') await downloadReportDocx(payload)
+      if (exportFormat === 'xlsx') downloadReportExcel(payload)
+    } catch (e) {
+      setError(e?.message || 'Download failed')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   const handleClosePdfModal = () => {
     setShowPdfModal(false)
     setPdfHtmlContent('')
@@ -97,23 +135,21 @@ export default function AdminInstitutionReports() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <label className="sr-only" htmlFor="admin-report-format">Export file type</label>
+            <select id="admin-report-format" value={exportFormat} onChange={(e) => setExportFormat(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700" disabled={downloading || pdfPreviewing}>
+              <option value="docx">Word document (.docx)</option>
+              <option value="pdf">PDF (.pdf)</option>
+              <option value="csv">CSV (.csv)</option>
+              <option value="xlsx">Excel workbook (.xlsx)</option>
+            </select>
             <button
               type="button"
-              onClick={handleCsvDownload}
-              disabled={downloading}
+              onClick={handleExport}
+              disabled={downloading || pdfPreviewing || !reportData}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 transition-colors shadow-sm"
             >
               <Download className="w-4 h-4" />
-              {downloading ? 'Downloading…' : 'Download CSV'}
-            </button>
-            <button
-              type="button"
-              onClick={handlePdfPreview}
-              disabled={pdfPreviewing}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-slate-700 hover:bg-slate-800 disabled:opacity-60 transition-colors shadow-sm"
-            >
-              <Eye className="w-4 h-4" />
-              {pdfPreviewing ? 'Loading…' : 'Preview PDF'}
+              {downloading || pdfPreviewing ? 'Preparing…' : exportFormat === 'pdf' ? 'Preview PDF' : 'Export report'}
             </button>
           </div>
         </div>
@@ -219,7 +255,7 @@ export default function AdminInstitutionReports() {
 
       {/* PDF Preview Modal */}
       {showPdfModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        createPortal(<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[300] p-4 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 flex-shrink-0">
               <h3 className="text-lg font-semibold text-slate-900">Report Preview</h3>
@@ -251,7 +287,7 @@ export default function AdminInstitutionReports() {
               />
             </div>
           </div>
-        </div>
+        </div>, document.body)
       )}
     </div>
   )

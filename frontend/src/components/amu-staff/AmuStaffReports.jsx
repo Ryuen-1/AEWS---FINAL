@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Calendar, Users, BarChart3, Activity, ArrowUpRight, ArrowDownRight, Download, Eye } from 'lucide-react'
+import { Calendar, Users, BarChart3, Activity, ArrowUpRight, ArrowDownRight, Download } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { getAmuStaffReports } from '../../api'
 import { useAuth } from '../../context/AuthContext'
 import ScrollTableContainer from '../ScrollTableContainer'
+import { downloadReportCsv, downloadReportDocx, downloadReportExcel } from '../../utils/reportExport'
 
 const VERDICT_META = [
   { key: 'mentoring', label: 'Mentoring', tone: 'blue' },
@@ -43,6 +45,7 @@ export default function AmuStaffReports() {
   const [exporting, setExporting] = useState(false)
   const [showPdfModal, setShowPdfModal] = useState(false)
   const [pdfHtmlContent, setPdfHtmlContent] = useState('')
+  const [exportFormat, setExportFormat] = useState('pdf')
   const { user } = useAuth()
 
   useEffect(() => {
@@ -280,6 +283,37 @@ export default function AmuStaffReports() {
     }
   }
 
+  const handleExport = async () => {
+    if (exportFormat === 'pdf') return handlePdfExport()
+    const payload = {
+      filename: 'amu-referral-report',
+      title: 'Consolidated Referral and Support Report',
+      summary: [
+        { label: 'Reporting Period', value: reportingPeriod },
+        { label: 'Total Referrals', value: totalReferrals },
+        { label: 'Monthly Average', value: avgPerMonth },
+        { label: 'Saved Support Decisions', value: totalWithRouting },
+      ],
+      columns: [
+        { key: 'period', label: 'Period' },
+        { key: 'referrals', label: 'Referrals' },
+        { key: 'share', label: 'Share of Total' },
+      ],
+      rows: rows.map((row) => ({ ...row, share: shareOf(row.referrals || 0, totalReferrals) })),
+    }
+    setError(null)
+    setExporting(true)
+    try {
+      if (exportFormat === 'csv') downloadReportCsv(payload)
+      if (exportFormat === 'docx') await downloadReportDocx(payload)
+      if (exportFormat === 'xlsx') downloadReportExcel(payload)
+    } catch (err) {
+      setError(err.message || 'Failed to export report.')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const handleClosePdfModal = () => {
     setShowPdfModal(false)
     setPdfHtmlContent('')
@@ -309,7 +343,16 @@ export default function AmuStaffReports() {
           <p className="mt-2 text-sm leading-6 text-slate-600">Referral activity and saved support decisions in one overview.</p>
           <p className="mt-3 flex items-center gap-2 text-sm font-medium text-slate-700"><Calendar className="h-4 w-4 text-teal-600" />{loading ? 'Loading reporting period…' : error ? 'Reporting period unavailable' : reportingPeriod}</p>
         </div>
-        <button type="button" onClick={handlePdfExport} disabled={exporting || loading || !!error || rows.length === 0} className="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 disabled:cursor-not-allowed disabled:opacity-50"><Eye className="h-4 w-4" />{exporting ? 'Preparing report…' : 'Preview PDF'}</button>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="sr-only" htmlFor="amu-report-format">Export file type</label>
+          <select id="amu-report-format" value={exportFormat} onChange={(e) => setExportFormat(e.target.value)} disabled={exporting || loading || !!error || rows.length === 0} className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 disabled:opacity-50">
+            <option value="docx">Word document (.docx)</option>
+            <option value="pdf">PDF (.pdf)</option>
+            <option value="csv">CSV (.csv)</option>
+            <option value="xlsx">Excel workbook (.xlsx)</option>
+          </select>
+          <button type="button" onClick={handleExport} disabled={exporting || loading || !!error || rows.length === 0} className="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-4 w-4" />{exporting ? 'Preparing report…' : exportFormat === 'pdf' ? 'Preview PDF' : 'Export report'}</button>
+        </div>
       </div>
       {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
       {loading ? <p role="status" className="py-10 text-center text-sm text-slate-500">Loading referral report…</p> : !error && <>
@@ -473,7 +516,7 @@ export default function AmuStaffReports() {
       </>}
 
       {showPdfModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true">
+        createPortal(<div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 flex-shrink-0">
               <div>
@@ -508,7 +551,7 @@ export default function AmuStaffReports() {
               />
             </div>
           </div>
-        </div>
+        </div>, document.body)
       )}
     </div>
   )

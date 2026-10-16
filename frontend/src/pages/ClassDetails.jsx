@@ -17,6 +17,7 @@ import {
 import DashboardLayout from '../components/DashboardLayout'
 import HeaderAwareOverlay from '../components/HeaderAwareOverlay'
 import InlineToast from '../components/InlineToast'
+import UploadProgressOverlay from '../components/UploadProgressOverlay'
 import ScrollTableContainer from '../components/ScrollTableContainer'
 import StudentPreviewModal from '../components/StudentPreviewModal'
 import { useAuth } from '../context/AuthContext'
@@ -717,13 +718,7 @@ export default function ClassDetails() {
         }}
       />
       {uploadingClasslist && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-white rounded-xl shadow-2xl p-8 flex flex-col items-center gap-4">
-            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-            <p className="text-lg font-semibold text-slate-900">Uploading class list...</p>
-            <p className="text-sm text-slate-600">Please wait while we process your file.</p>
-          </div>
-        </div>
+        <UploadProgressOverlay title="Uploading class list..." />
       )}
       {activeAIStudent && (
         <HeaderAwareOverlay
@@ -1017,13 +1012,7 @@ export default function ClassDetails() {
         onClose={() => setClasslistError('')}
       />
       {uploadingClasslist && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-white rounded-xl shadow-2xl p-8 flex flex-col items-center gap-4">
-            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-            <p className="text-lg font-semibold text-slate-900">Uploading classlist...</p>
-            <p className="text-sm text-slate-600">Please wait while we process your file.</p>
-          </div>
-        </div>
+        <UploadProgressOverlay title="Uploading classlist..." />
       )}
     </DashboardLayout>
   )

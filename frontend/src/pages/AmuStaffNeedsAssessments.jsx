@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ClipboardList, Search, AlertTriangle, LayoutDashboard, AlertTriangle as AlertIcon, TrendingUp, Clock3, Download, CheckCircle2, RefreshCw, Eye, Zap, X, Send } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import InlineToast from '../components/InlineToast'
@@ -103,8 +104,8 @@ function ResponsesModal({ detail, loading, error, onClose }) {
     }
   }, [])
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm">
       <div className="clean-scrollbar max-h-[82vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
         <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
           <div>
@@ -153,7 +154,8 @@ function ResponsesModal({ detail, loading, error, onClose }) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

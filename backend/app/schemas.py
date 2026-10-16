@@ -1,6 +1,15 @@
 from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
+REGISTRATION_COLLEGES = (
+    "College of Business",
+    "College of Arts and Sciences",
+    "College of Nursing",
+    "College of Medicine",
+    "College of Technologies",
+    "College of Education",
+)
+
 
 # ----- User -----
 class UserBase(BaseModel):
@@ -56,6 +65,8 @@ class StudentBase(BaseModel):
     email: EmailStr
     college: Optional[str] = None
     course: Optional[str] = None
+    program: Optional[str] = None
+    year_level: Optional[str] = None
     instructor: Optional[str] = None
 
 
@@ -68,6 +79,8 @@ class StudentUpdate(BaseModel):
     email: Optional[EmailStr] = None
     college: Optional[str] = None
     course: Optional[str] = None
+    program: Optional[str] = None
+    year_level: Optional[str] = None
     instructor: Optional[str] = None
 
 
@@ -76,6 +89,7 @@ class StudentResponse(StudentBase):
     id_number: Optional[str] = None
     created_at: Optional[str] = None
     auto_created: Optional[bool] = None
+    profile_completed: Optional[bool] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -144,6 +158,9 @@ class SignUpRequest(BaseModel):
 
         if self.role == "instructor" and not self.college:
             raise ValueError("College is required for Instructor accounts")
+
+        if self.college not in REGISTRATION_COLLEGES:
+            raise ValueError("Select a college from the available registration options")
 
         return self
 

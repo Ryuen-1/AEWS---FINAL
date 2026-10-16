@@ -147,7 +147,7 @@ export default function AmuStaffReferrals() {
                 <tr>
                   <th className="px-5 py-4 text-[12px] font-semibold text-gray-500 uppercase tracking-wider text-left">Student</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-gray-500 uppercase tracking-wider text-left">College</th>
-                  <th className="px-5 py-4 text-[12px] font-semibold text-gray-500 uppercase tracking-wider text-left">Course</th>
+                  <th className="px-5 py-4 text-[12px] font-semibold text-gray-500 uppercase tracking-wider text-left">Program / Year</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-gray-500 uppercase tracking-wider text-left">Referred by</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-gray-500 uppercase tracking-wider text-left">Date</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-gray-500 uppercase tracking-wider text-left"></th>
@@ -197,13 +197,13 @@ export default function AmuStaffReferrals() {
                       <td className="px-5 py-4 text-sm text-gray-600 align-top">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
-                          <span className="truncate">{r.college || '-'}</span>
+                          <span className="truncate">{r.student_college || r.college || '-'}</span>
                         </div>
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 align-top">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <BookOpen className="w-4 h-4 text-gray-400 shrink-0" />
-                          <span className="truncate">{r.subject_code || r.course || '-'}</span>
+                          <span className="truncate">{[r.student_program || r.subject_code || r.course || '-', r.student_year_level].filter(Boolean).join(' • ')}</span>
                         </div>
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 align-top truncate">{r.referred_by || '-'}</td>

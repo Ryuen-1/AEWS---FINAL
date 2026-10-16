@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { getAmuStaffReferral } from '../../api'
 
@@ -76,7 +77,7 @@ export default function ReferralDetailModal({ refId, onClose }) {
 
   const displayReasons = buildDisplayReasons(referral)
 
-  return (
+  return createPortal(
     <div className="modal-overlay-enter fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
       <div className="modal-panel-enter clean-scrollbar w-full max-w-xl max-h-[80vh] overflow-y-auto rounded-2xl bg-white shadow-2xl shadow-slate-900/18 border border-slate-200/80">
         {/* Header */}
@@ -159,6 +160,7 @@ export default function ReferralDetailModal({ refId, onClose }) {
           </div>
         ) : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

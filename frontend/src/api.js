@@ -480,6 +480,11 @@ export async function updateStudentProfile(payload) {
   return data
 }
 
+/** Complete the required first-login student profile. */
+export async function completeStudentProfile(payload) {
+  return updateStudentProfile({ ...payload, complete_profile: true })
+}
+
 export async function listClasses(instructorId) {
   const res = await fetch(`${API_BASE}/api/classes?instructor_id=${encodeURIComponent(instructorId)}`, {
     headers: getAuthHeaders(),

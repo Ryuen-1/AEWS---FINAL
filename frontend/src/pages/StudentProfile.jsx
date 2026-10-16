@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, CheckCircle2, Key, Mail, Send, User } from 'lucide-react'
+import { AlertTriangle, Building2, CheckCircle2, GraduationCap, Key, Mail, School, Send, User } from 'lucide-react'
 import { API_BASE, getStudentProfile } from '../api'
 import StudentLayout from '../components/StudentLayout'
 
@@ -9,7 +9,7 @@ export default function StudentProfile() {
   const studentUser = useMemo(() => JSON.parse(localStorage.getItem('student_user') || '{}'), [])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [profile, setProfile] = useState({ name: '', email: '', id_number: '' })
+  const [profile, setProfile] = useState({ name: '', email: '', id_number: '', college: '', program: '', year_level: '' })
   const [passwordData, setPasswordData] = useState({ current_password: '', new_password: '', confirm_password: '', verification_code: '' })
   const [codeSending, setCodeSending] = useState(false)
   const [passwordSaving, setPasswordSaving] = useState(false)
@@ -34,6 +34,9 @@ export default function StudentProfile() {
         name: data.name || '',
         email: data.email || '',
         id_number: data.id_number || '',
+        college: data.college || '',
+        program: data.program || '',
+        year_level: data.year_level || '',
       })
     } catch (err) {
       setError(err.message || 'Failed to load profile')
@@ -143,7 +146,7 @@ export default function StudentProfile() {
             <h2 className="mt-1 text-xl font-bold text-white">Personal Information</h2>
           </div>
 
-          <div className="grid gap-4 p-6 md:grid-cols-2">
+          <div className="grid gap-4 p-6 md:grid-cols-2 lg:grid-cols-3">
             <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5">
               <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
                 <User className="h-5 w-5" />
@@ -158,6 +161,24 @@ export default function StudentProfile() {
               </div>
               <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Email</p>
               <p className="mt-2 break-words text-lg font-semibold text-slate-900">{profile.email || 'Not available'}</p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><Building2 className="h-5 w-5" /></div>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">College</p>
+              <p className="mt-2 text-lg font-semibold text-slate-900">{profile.college || 'Not available'}</p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><School className="h-5 w-5" /></div>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Program</p>
+              <p className="mt-2 text-lg font-semibold text-slate-900">{profile.program || 'Not available'}</p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><GraduationCap className="h-5 w-5" /></div>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Year Level</p>
+              <p className="mt-2 text-lg font-semibold text-slate-900">{profile.year_level || 'Not available'}</p>
             </div>
           </div>
         </div>

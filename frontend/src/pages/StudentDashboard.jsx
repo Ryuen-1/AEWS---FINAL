@@ -32,6 +32,10 @@ export default function StudentDashboard() {
       navigate('/student-login')
       return
     }
+    if (studentUser.profile_completed === false) {
+      navigate('/student/complete-profile', { replace: true })
+      return
+    }
     fetchDashboard()
   }, [])
 

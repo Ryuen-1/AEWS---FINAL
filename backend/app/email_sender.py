@@ -655,7 +655,7 @@ Login URL: {login_url}
 Email: {to_email}
 Password: {password}
 
-Please sign in to access your referrals, needs assessment forms, and other student support features.
+Please sign in to access your referrals, needs assessment forms, and other student support features. On your first sign-in, you will be asked to complete your profile with your college, program, and year level.
 
 For security reasons, we recommend changing your password after your first login.
 
@@ -685,6 +685,7 @@ Academic Early Warning System
             <td style="padding: 32px;">
               <p style="margin: 0 0 16px; font-size: 16px; color: #374151; line-height: 1.5;">Hello {escape(user_name)},</p>
               <p style="margin: 0 0 18px; font-size: 15px; color: #6b7280; line-height: 1.7;">Your student account for the Academic Early Warning System has been automatically created. You can now sign in to access your referrals, needs assessment forms, and other student support features.</p>
+              <div style="margin: 0 0 18px; padding: 14px 16px; border-radius: 10px; background-color: #eff6ff; border: 1px solid #bfdbfe; font-size: 14px; color: #1e40af; line-height: 1.55;"><strong>First sign-in requirement:</strong> complete your profile by providing your college, program, and year level. This information helps AMU staff provide the appropriate support.</div>
               <div style="margin: 20px 0; padding: 20px; border-radius: 10px; background-color: #f5f3ff; border: 1px solid #ddd6fe;">
                 <p style="margin: 0 0 12px; font-size: 13px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Account Credentials</p>
                 <div style="margin: 0 0 12px;">

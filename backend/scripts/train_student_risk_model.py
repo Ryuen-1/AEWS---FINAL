@@ -11,7 +11,15 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from sklearn.base import clone
-from sklearn.metrics import accuracy_score, classification_report
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
 from sklearn.model_selection import StratifiedKFold, train_test_split
 from xgboost import XGBClassifier
 
@@ -524,6 +532,29 @@ def _metrics_from_predictions(y_true, preds) -> tuple[dict[str, float], str]:
     return metrics, report
 
 
+def _high_risk_metrics(
+    y_true: pd.Series,
+    preds: np.ndarray,
+    probabilities: np.ndarray,
+) -> dict[str, float | int]:
+    """Return evaluation results with High Risk (label 1) as the positive class."""
+    tn, fp, fn, tp = confusion_matrix(y_true, preds, labels=[0, 1]).ravel()
+    return {
+        "precision_high_risk": float(
+            precision_score(y_true, preds, pos_label=1, zero_division=0)
+        ),
+        "recall_high_risk": float(
+            recall_score(y_true, preds, pos_label=1, zero_division=0)
+        ),
+        "f1_high_risk": float(f1_score(y_true, preds, pos_label=1, zero_division=0)),
+        "roc_auc": float(roc_auc_score(y_true, probabilities[:, 1])),
+        "true_negatives": int(tn),
+        "false_positives": int(fp),
+        "false_negatives": int(fn),
+        "true_positives": int(tp),
+    }
+
+
 def _cross_validate_model(model, x: pd.DataFrame, y: pd.Series, cv: StratifiedKFold) -> tuple[float, float]:
     scores: list[float] = []
     for train_idx, test_idx in cv.split(x, y):
@@ -593,6 +624,8 @@ def evaluate_profile(
         fitted_model.fit(x_train, y_train)
         preds = fitted_model.predict(x_test)
         metrics, report = _metrics_from_predictions(y_test, preds)
+        probabilities = fitted_model.predict_proba(x_test)
+        metrics.update(_high_risk_metrics(y_test, preds, probabilities))
         metrics["cv_mean_accuracy"] = cv_mean_accuracy
         metrics["cv_std_accuracy"] = cv_std_accuracy
         model_results[model_name] = {
@@ -600,11 +633,12 @@ def evaluate_profile(
             "report": report,
         }
         fitted_models[model_name] = fitted_model
-        holdout_probabilities[model_name] = fitted_model.predict_proba(x_test)
+        holdout_probabilities[model_name] = probabilities
 
     ensemble_proba = np.mean(list(holdout_probabilities.values()), axis=0)
     ensemble_preds = np.argmax(ensemble_proba, axis=1)
     ensemble_metrics, ensemble_report = _metrics_from_predictions(y_test, ensemble_preds)
+    ensemble_metrics.update(_high_risk_metrics(y_test, ensemble_preds, ensemble_proba))
     ensemble_cv_mean, ensemble_cv_std = _cross_validate_ensemble(base_models, x, y, cv)
     ensemble_metrics["cv_mean_accuracy"] = ensemble_cv_mean
     ensemble_metrics["cv_std_accuracy"] = ensemble_cv_std

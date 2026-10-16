@@ -102,8 +102,9 @@ export default function AmuStaffStudentDetail() {
                   <p className="text-[10px] text-gray-500 mt-0.5">Student ID: {student.student_id || '-'}</p>
                 )}
                 <p className="text-[10px] text-gray-500 mt-0.5 flex items-center gap-0.5">
-                  <Building2 className="w-2 h-2" /> {student.college || '-'} • <BookOpen className="w-2 h-2" /> {student.course || student.subject_code || '-'}
+                  <Building2 className="w-2 h-2" /> {student.student_college || student.college || '-'} • <BookOpen className="w-2 h-2" /> {student.student_program || student.course || student.subject_code || '-'}
                 </p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Year level: {student.student_year_level || '-'}</p>
               </div>
             </div>
 

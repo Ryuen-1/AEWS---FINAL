@@ -90,6 +90,20 @@ def _to_iso(value):
     return value
 
 
+def _profile_is_complete(student_doc: dict) -> bool:
+    """A student profile is complete only when all required academic details exist."""
+    return all(str(student_doc.get(field) or "").strip() for field in ("college", "program", "year_level"))
+
+
+def _student_profile_fields(student_doc: dict) -> dict:
+    return {
+        "college": student_doc.get("college") or "",
+        "program": student_doc.get("program") or "",
+        "year_level": student_doc.get("year_level") or "",
+        "profile_completed": _profile_is_complete(student_doc),
+    }
+
+
 @public_router.post("/students/login")
 def student_login(body: StudentLoginRequest):
     """Student login - accepts both student ID and email."""
@@ -132,6 +146,7 @@ def student_login(body: StudentLoginRequest):
         "email": student_doc.get("email") or "",
         "id_number": student_doc.get("id_number") or "",
         "student_id": student_doc.get("id_number") or student_ident,
+        **_student_profile_fields(student_doc),
     }
 
 
@@ -161,6 +176,7 @@ def get_public_student_profile(student_id: str):
         "id_number": student_doc.get("id_number") or student_ident,
         "created_at": student_doc.get("created_at"),
         "password_changed_at": student_doc.get("password_changed_at"),
+        **_student_profile_fields(student_doc),
     }
 
 
@@ -192,6 +208,33 @@ def update_public_student_profile(body: dict):
     if body.get("id_number"):
         update_data["id_number"] = body["id_number"].strip()
 
+    # Credential-created students must supply these three values before they
+    # can enter the student portal. Existing profile updates may omit them.
+    is_completion = bool(body.get("complete_profile"))
+    profile_fields = ("college", "program", "year_level")
+    if is_completion:
+        missing = [field.replace("_", " ") for field in profile_fields if not str(body.get(field) or "").strip()]
+        if missing:
+            raise HTTPException(status_code=400, detail=f"Please provide your {', '.join(missing)}.")
+
+    for field in profile_fields:
+        if field in body and body.get(field) is not None:
+            value = str(body[field]).strip()
+            if len(value) > 100:
+                raise HTTPException(status_code=400, detail=f"{field.replace('_', ' ').title()} must be 100 characters or fewer.")
+            if value:
+                update_data[field] = value
+
+    completed_profile = {
+        **student_doc,
+        **update_data,
+    }
+    if is_completion and not _profile_is_complete(completed_profile):
+        raise HTTPException(status_code=400, detail="College, program, and year level are required.")
+    if is_completion:
+        update_data["profile_completed"] = True
+        update_data["profile_completed_at"] = datetime.now(timezone.utc)
+
     if update_data:
         db.students.update_one(
             {"_id": student_doc["_id"]},
@@ -207,6 +250,7 @@ def update_public_student_profile(body: dict):
         "id_number": updated_doc.get("id_number") or student_id,
         "created_at": updated_doc.get("created_at"),
         "password_changed_at": updated_doc.get("password_changed_at"),
+        **_student_profile_fields(updated_doc),
     }
 
 

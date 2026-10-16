@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { createPortal } from 'react-dom'
 import {
   BookOpen,
   Download,
   FileSpreadsheet,
   TriangleAlert,
   Users,
-  Eye,
 } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import InlineToast from '../components/InlineToast'
@@ -20,6 +20,7 @@ import {
   listClassStudents,
 } from '../api'
 import { sortStudentsByName } from '../lib/studentSort'
+import { downloadReportDocx, downloadReportExcel } from '../utils/reportExport'
 
 const NEEDS_ASSESSMENT_FIELDS = [
   ['difficulty_understanding_lectures', 'Difficulty in understanding lectures'],
@@ -112,6 +113,7 @@ export default function InstructorReports() {
   const [showPdfModal, setShowPdfModal] = useState(false)
   const [pdfHtmlContent, setPdfHtmlContent] = useState('')
   const [pdfPreviewing, setPdfPreviewing] = useState(false)
+  const [exportFormat, setExportFormat] = useState('csv')
 
   useEffect(() => {
     if (!user) {
@@ -271,11 +273,11 @@ export default function InstructorReports() {
     }
 
     const csvRows = reportData.rows.map((row) => ({
-      student_id: row.student_id || '',
-      student_name: row.student_name || '',
-      attendance_rate: row.attendance_rate || row.instructor_attendance || '',
-      midterm_grade: row.midterm_grade || '',
-      referral_status: row.flagged_for_mentoring || 'No',
+      'Student ID': row.student_id || '',
+      'Student Name': row.student_name || '',
+      'Attendance Rate': row.attendance_rate || row.instructor_attendance || '',
+      'Midterm Grade': row.midterm_grade || '',
+      'Referral Status': row.flagged_for_mentoring || 'No',
     }))
 
     const headers = [
@@ -291,6 +293,43 @@ export default function InstructorReports() {
     setReportError('')
     setReportMessage('Section report exported as CSV successfully.')
   }, [reportData])
+
+  async function handleExport() {
+    if (exportFormat === 'csv') return handleExportCsv()
+    if (exportFormat === 'pdf') return handleExportPdf()
+    if (!reportData?.rows?.length) {
+      setReportError('There is no section data to export yet.')
+      return
+    }
+    const classInfo = reportData.classInfo || {}
+    const fileBase = `${normalizeValue(classInfo.subject_code || 'section-report').replace(/\s+/g, '-')}-${normalizeValue(classInfo.section_code || 'all').replace(/\s+/g, '-')}-report`
+    const payload = {
+      filename: fileBase,
+      title: 'Student Performance Report',
+      summary: [
+        { label: 'Course', value: [classInfo.subject_code, classInfo.subject_name].filter(Boolean).join(' - ') },
+        { label: 'Section', value: classInfo.section_code || '-' },
+        { label: 'Total Students', value: reportData.totals?.students ?? 0 },
+        { label: 'Referred to AMU', value: reportData.totals?.referred ?? 0 },
+      ],
+      columns: [
+        { key: 'student_id', label: 'Student ID' },
+        { key: 'student_name', label: 'Student Name' },
+        { key: 'attendance_rate', label: 'Attendance Rate' },
+        { key: 'midterm_grade', label: 'Midterm Grade' },
+        { key: 'flagged_for_mentoring', label: 'Referral Status' },
+      ],
+      rows: reportData.rows.map((row) => ({ ...row, attendance_rate: row.attendance_rate || row.instructor_attendance || '' })),
+    }
+    try {
+      if (exportFormat === 'docx') await downloadReportDocx(payload)
+      if (exportFormat === 'xlsx') downloadReportExcel(payload)
+      setReportError('')
+      setReportMessage(`Section report exported as ${exportFormat === 'docx' ? 'Word document' : 'Excel workbook'} successfully.`)
+    } catch (err) {
+      setReportError(err.message || 'Failed to export report.')
+    }
+  }
 
   const handleExportPdf = useCallback(() => {
     if (!reportData?.rows?.length) {
@@ -568,21 +607,20 @@ export default function InstructorReports() {
                   </select>
                 </div>
                 <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2">
+                  <label className="sr-only" htmlFor="section-report-format">Export file type</label>
+                  <select id="section-report-format" value={exportFormat} onChange={(e) => setExportFormat(e.target.value)} disabled={!reportData?.rows?.length || pdfPreviewing} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 disabled:opacity-60">
+                    <option value="docx">Word (.docx)</option>
+                    <option value="pdf">PDF (.pdf)</option>
+                    <option value="csv">CSV (.csv)</option>
+                    <option value="xlsx">Excel (.xlsx)</option>
+                  </select>
                   <button
                     type="button"
-                    onClick={handleExportCsv}
-                    disabled={!reportData?.rows?.length}
+                    onClick={handleExport}
+                    disabled={!reportData?.rows?.length || pdfPreviewing}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-60 transition-colors"
                   >
                     <Download className="w-4 h-4" />
-                    Export CSV
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleExportPdf}
-                    disabled={!reportData?.rows?.length || pdfPreviewing}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700 text-white text-xs font-semibold hover:bg-slate-800 disabled:opacity-60 transition-colors"
-                  >
                     {pdfPreviewing ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -591,7 +629,7 @@ export default function InstructorReports() {
                     ) : (
                       <>
                         <FileSpreadsheet className="w-4 h-4" />
-                        Preview PDF
+                        {exportFormat === 'pdf' ? 'Preview PDF' : 'Export report'}
                       </>
                     )}
                   </button>
@@ -699,7 +737,7 @@ export default function InstructorReports() {
       </div>
 
       {showPdfModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true">
+        createPortal(<div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 flex-shrink-0">
               <div>
@@ -734,7 +772,7 @@ export default function InstructorReports() {
               />
             </div>
           </div>
-        </div>
+        </div>, document.body)
       )}
     </DashboardLayout>
   )

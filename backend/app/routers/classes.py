@@ -283,6 +283,7 @@ def _ensure_student_account(db, enrollment_doc: dict) -> tuple[str, str, bool]:
                 "status": "active",
                 "email_verified": True,
                 "auto_created": True,
+                "profile_completed": False,
             }
             if student_name and not existing_student.get("name"):
                 updates["name"] = student_name
@@ -333,6 +334,7 @@ def _ensure_student_account(db, enrollment_doc: dict) -> tuple[str, str, bool]:
         "email_verified": True,  # Auto-verify since we're creating it
         "created_at": datetime.now(timezone.utc),
         "auto_created": True,  # Flag to indicate this was auto-created via referral
+        "profile_completed": False,
     }
     
     db.students.insert_one(student_doc)
@@ -2371,6 +2373,39 @@ def _extract_subject_name_from_file(file_path: Path) -> str | None:
     )
 
 
+def _extract_semester_from_file(file_path: Path) -> str | None:
+    return _extract_labeled_metadata_from_file(
+        file_path,
+        labels=("semester", "term", "academic term"),
+        normalizer=_normalize_subject_name_candidate,
+    )
+
+
+def _extract_school_year_from_file(file_path: Path) -> str | None:
+    return _extract_labeled_metadata_from_file(
+        file_path,
+        labels=("school year", "academic year", "sy"),
+        normalizer=_normalize_subject_name_candidate,
+    )
+
+
+def _extract_instructor_from_file(file_path: Path) -> str | None:
+    return _extract_labeled_metadata_from_file(
+        file_path,
+        labels=("instructor", "instructor name", "faculty", "teacher"),
+        normalizer=_normalize_subject_name_candidate,
+    )
+
+
+def _extract_document_metadata(file_path: Path) -> dict[str, str]:
+    """Return optional class metadata printed in an uploaded document."""
+    return {
+        "semester": _extract_semester_from_file(file_path) or "",
+        "school_year": _extract_school_year_from_file(file_path) or "",
+        "instructor_name": _extract_instructor_from_file(file_path) or "",
+    }
+
+
 def _extract_labeled_metadata_from_file(file_path: Path, labels: tuple[str, ...], normalizer) -> str | None:
     ext = file_path.suffix.lower()
 
@@ -2452,6 +2487,23 @@ def _flexible_metadata_match(expected: str | None, extracted: str | None) -> boo
     return False
 
 
+def _store_class_document_metadata(db, class_doc: dict, document_metadata: dict[str, str]) -> None:
+    """Persist newly supplied classlist metadata without overwriting an existing value."""
+    class_id = class_doc.get("_id")
+    if not class_id:
+        return
+
+    updates = {
+        field: value
+        for field, value in document_metadata.items()
+        if value and not _normalize_cell(class_doc.get(field))
+    }
+    if updates:
+        db.classes.update_one({"_id": class_id}, {"$set": updates})
+        class_doc.update(updates)
+        logger.info("Stored classlist document metadata: %s", ", ".join(updates))
+
+
 def _validate_upload_file_matches_class(db, file_path: Path, class_doc: dict, *, upload_type: str = "") -> None:
     expected_section_raw = class_doc.get("section_code")
     if not expected_section_raw and class_doc.get("_id"):
@@ -2467,6 +2519,12 @@ def _validate_upload_file_matches_class(db, file_path: Path, class_doc: dict, *,
     extracted_section = _normalize_metadata_compare(_extract_section_code_from_file(file_path))
     extracted_subject_code = _normalize_metadata_compare(_extract_subject_code_from_file(file_path))
     extracted_subject_name = _normalize_metadata_compare(_extract_subject_name_from_file(file_path))
+    document_metadata = _extract_document_metadata(file_path)
+    metadata_labels = {
+        "semester": "semester",
+        "school_year": "school year",
+        "instructor_name": "instructor",
+    }
 
     # Debug logging for troubleshooting
     import logging
@@ -2478,6 +2536,25 @@ def _validate_upload_file_matches_class(db, file_path: Path, class_doc: dict, *,
     logger.info(f"  Extracted - Section: {_extract_section_code_from_file(file_path)} (normalized: {extracted_section})")
     logger.info(f"  Extracted - Subject Code: {_extract_subject_code_from_file(file_path)} (normalized: {extracted_subject_code})")
     logger.info(f"  Extracted - Subject Name: {_extract_subject_name_from_file(file_path)} (normalized: {extracted_subject_name})")
+
+    # Semester, school year, and instructor are learned from the classlist.
+    # Once present on the class, every later classlist or gradesheet must agree
+    # whenever that field is also present in the uploaded document.
+    for field, label in metadata_labels.items():
+        expected_raw = class_doc.get(field)
+        extracted_raw = document_metadata[field]
+        expected = _normalize_metadata_compare(expected_raw)
+        extracted = _normalize_metadata_compare(extracted_raw)
+        logger.info(f"  Expected - {label.title()}: {expected_raw} (normalized: {expected})")
+        logger.info(f"  Extracted - {label.title()}: {extracted_raw} (normalized: {extracted})")
+        if expected and extracted and not _flexible_metadata_match(expected, extracted):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"File {label} does not match this class. Expected '{expected_raw}', "
+                    f"but found '{extracted_raw}'."
+                ),
+            )
 
     # Auto-correct: If database has wrong subject_name (same as subject_code), fix it
     class_id = class_doc.get("_id")
@@ -2507,6 +2584,7 @@ def _validate_upload_file_matches_class(db, file_path: Path, class_doc: dict, *,
         
         if any(matches for _, matches in comparisons):
             logger.info("  Validation passed - at least one field matched")
+            _store_class_document_metadata(db, class_doc, document_metadata)
             return
 
         if extracted_section and expected_section:
@@ -2536,6 +2614,7 @@ def _validate_upload_file_matches_class(db, file_path: Path, class_doc: dict, *,
                     f"but found '{_extract_subject_name_from_file(file_path)}'."
                 ),
             )
+        _store_class_document_metadata(db, class_doc, document_metadata)
         return
 
     if extracted_section and expected_section and not _flexible_metadata_match(expected_section, extracted_section):
@@ -4082,6 +4161,7 @@ async def upload_and_create_classlist(
         detected_subject_code = None
         detected_section_code = None
         detected_subject_name = None
+        detected_document_metadata = {"semester": "", "school_year": "", "instructor_name": ""}
         
         for upload in files:
             ext = os.path.splitext(upload.filename)[1].lower()
@@ -4147,6 +4227,14 @@ async def upload_and_create_classlist(
                 if extracted_name:
                     detected_subject_name = extracted_name
 
+            # These values establish the expected document metadata for a
+            # newly created class. They are intentionally taken from the
+            # classlist, not from a gradesheet or attendance file.
+            if file_type == "classlist":
+                for field, value in _extract_document_metadata(dest).items():
+                    if value and not detected_document_metadata[field]:
+                        detected_document_metadata[field] = value
+
         # Use detected subject code, fallback to form parameter
         if not detected_subject_code:
             detected_subject_code = (subject_code or course_code or "").strip() or None
@@ -4204,6 +4292,7 @@ async def upload_and_create_classlist(
                 "subject_name": detected_subject_name or "",  # Don't fallback to subject code
                 "status": "active",
             }
+            class_data.update({key: value for key, value in detected_document_metadata.items() if value})
             result = db.classes.insert_one(class_data)
             class_id = str(result.inserted_id)
         else:
@@ -4213,6 +4302,7 @@ async def upload_and_create_classlist(
                     {"_id": class_doc["_id"]},
                     {"$set": {"subject_name": detected_subject_name}}
                 )
+            _store_class_document_metadata(db, class_doc, detected_document_metadata)
             class_id = str(class_doc["_id"])
 
         # Build students + enrollments from any seed source.

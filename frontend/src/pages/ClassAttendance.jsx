@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarCheck, Upload } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import AttendanceTableView from '../components/instructor/AttendanceTableView'
 import InlineToast from '../components/InlineToast'
+import UploadProgressOverlay from '../components/UploadProgressOverlay'
 import { useAuth } from '../context/AuthContext'
 import { getClass, getClassAttendance, uploadClassFiles } from '../api'
 import { sortStudentsByName } from '../lib/studentSort'
@@ -248,13 +249,7 @@ export default function ClassAttendance() {
         onClose={() => setAttendanceError('')}
       />
       {uploadingAttendance && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-white rounded-xl shadow-2xl p-8 flex flex-col items-center gap-4">
-            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-            <p className="text-lg font-semibold text-slate-900">Uploading attendance sheet...</p>
-            <p className="text-sm text-slate-600">Please wait while we process your file.</p>
-          </div>
-        </div>
+        <UploadProgressOverlay title="Uploading attendance sheet..." />
       )}
     </DashboardLayout>
   )

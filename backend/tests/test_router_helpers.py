@@ -1,4 +1,5 @@
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -10,6 +11,7 @@ if str(BACKEND_ROOT) not in sys.path:
 from app.routers.admin import _student_identifier  # noqa: E402
 from app.routers.classes import (
     _extract_student_identity,
+    _extract_document_metadata,
     _normalize_cell,
     _row_identifier_label,
     _normalize_student_id,
@@ -21,6 +23,7 @@ from app.routers.classes import (
 )  # noqa: E402
 from app.ai_features import _bool_to_int  # noqa: E402
 from app.ai_model import _can_make_prediction  # noqa: E402
+from app.routers.students import _profile_is_complete  # noqa: E402
 
 
 class ClassesHelperTests(unittest.TestCase):
@@ -40,6 +43,36 @@ class ClassesHelperTests(unittest.TestCase):
         self.assertEqual(email, "student@example.com")
         self.assertEqual(name, "Donna Igar Albarracin")
         self.assertEqual(student_id, "2201103564")
+
+    def test_extract_document_metadata_reads_classlist_labels(self):
+        content = (
+            "Semester:,1st Semester\n"
+            "School Year:,2026-2027\n"
+            "Instructor:,Dr. Jane Doe\n"
+            "Student ID,Name\n"
+            "2201103564,Donna Igar Albarracin\n"
+        )
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", encoding="utf-8", delete=False) as handle:
+            handle.write(content)
+            path = Path(handle.name)
+        try:
+            self.assertEqual(
+                _extract_document_metadata(path),
+                {
+                    "semester": "1st Semester",
+                    "school_year": "2026-2027",
+                    "instructor_name": "Dr. Jane Doe",
+                },
+            )
+        finally:
+            path.unlink(missing_ok=True)
+
+
+class StudentProfileCompletionTests(unittest.TestCase):
+    def test_profile_completion_requires_all_academic_fields(self):
+        self.assertFalse(_profile_is_complete({"college": "College of Technologies", "program": "BSIT"}))
+        self.assertFalse(_profile_is_complete({"college": "College of Technologies", "program": "BSIT", "year_level": " "}))
+        self.assertTrue(_profile_is_complete({"college": "College of Technologies", "program": "BSIT", "year_level": "2nd Year"}))
 
     def test_row_identifier_label_falls_back_id_then_name_then_email(self):
         self.assertEqual(

@@ -47,7 +47,7 @@ export default function StudentLogin() {
       }
       localStorage.setItem('student_user', JSON.stringify(studentData))
       resetIdleSession('student', studentData.id)
-      navigate('/student-dashboard')
+      navigate(data.profile_completed ? '/student-dashboard' : '/student/complete-profile', { replace: true })
     } catch (err) {
       console.error('Login error:', err)
       setError(err.message || 'Login failed. Please check your credentials.')

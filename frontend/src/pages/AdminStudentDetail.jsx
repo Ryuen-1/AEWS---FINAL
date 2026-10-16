@@ -101,9 +101,9 @@ export default function AdminStudentDetail() {
                     {data.student_id && (
                       <p className="text-[10px] text-gray-500 mt-0.5">Student ID: {data.student_id}</p>
                     )}
-                    <p className="text-[10px] text-gray-500 mt-0.5 flex items-center gap-0.5">
-                      <Building2 className="w-2 h-2" /> {department}
-                    </p>
+                    <p className="text-[10px] text-gray-500 mt-0.5 flex items-center gap-0.5"><Building2 className="w-2 h-2" /> College: {data.college || '-'}</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5 flex items-center gap-0.5"><BookOpen className="w-2 h-2" /> Program: {data.program || '-'}</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">Year level: {data.year_level || '-'}</p>
                     {predictionLabel && (
                       <span className="inline-flex items-center gap-0.5 mt-1 px-1 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700">
                         Outcome: {predictionLabel}
@@ -111,7 +111,7 @@ export default function AdminStudentDetail() {
                     )}
                   </div>
                 </div>
-                <p className="text-[10px] text-gray-500 mt-2">Instructor: {instructorName}</p>
+                <p className="text-[10px] text-gray-500 mt-2">Instructor: {instructorName} • Instructor college: {department}</p>
                 {(gpa != null || attendance != null) && (
                   <div className="grid grid-cols-2 gap-1.5 mt-2">
                     {gpa != null && (

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X, AlertTriangle, Clock3, CheckCircle2 } from 'lucide-react'
 import { API_BASE } from '../../api'
 import { getAuthHeaders } from '../../lib/authStorage'
@@ -162,7 +163,7 @@ export default function PredictionResultsModal({
     }
   }
 
-  return (
+  return createPortal(
     <div className="modal-overlay-enter fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm">
       <div className="modal-panel-enter clean-scrollbar max-h-[82vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
         <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
@@ -382,6 +383,7 @@ export default function PredictionResultsModal({
           ) : null}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
