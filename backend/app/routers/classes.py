@@ -1039,6 +1039,52 @@ def _rows_to_dicts(raw_rows) -> list[dict]:
         if rows:
             return rows
 
+    # BukSU attendance forms commonly have three header rows: the student
+    # number/name row, a repeated Date row, and a Signature row. Use the
+    # explicit "Name of Students" label and carry that column into the
+    # normalized table, instead of treating the second header row as a
+    # student record (or "No." as a student ID).
+    attendance_header_idx = next(
+        (
+            idx for idx, row in enumerate(raw_rows[:12])
+            if any(
+                _normalize_cell(cell).strip().lower() in {
+                    "name of students", "name of student", "student name"
+                }
+                for cell in row
+            )
+        ),
+        None,
+    )
+    if attendance_header_idx is not None:
+        header_values = [
+            _normalize_cell(cell).strip().lower() for cell in raw_rows[attendance_header_idx]
+        ]
+        name_col_idx = next(
+            (idx for idx, value in enumerate(header_values)
+             if value in {"name of students", "name of student", "student name"}),
+            None,
+        )
+        if name_col_idx is not None:
+            headers = _make_unique_headers(raw_rows[attendance_header_idx])
+            headers[name_col_idx] = "name of students"
+            parsed_rows = []
+            for raw_row in raw_rows[attendance_header_idx + 1:]:
+                row_dict = {
+                    headers[idx] if idx < len(headers) else f"col_{idx}": _normalize_cell(value)
+                    for idx, value in enumerate(raw_row)
+                }
+                # Skip repeated table header rows and blank roster rows. The
+                # attendance form's "No." values are sequence numbers only.
+                student_name = _normalize_cell(raw_row[name_col_idx] if name_col_idx < len(raw_row) else "")
+                if not student_name or student_name.strip().lower() in {
+                    "name of students", "name of student", "student name"
+                }:
+                    continue
+                parsed_rows.append(row_dict)
+            if parsed_rows:
+                return parsed_rows
+
     header_idx = _guess_header_index(raw_rows)
     if header_idx is None:
         for r in raw_rows:
@@ -2887,6 +2933,16 @@ def _extract_student_identity(row, keys):
     # should only be used after the more exact student-id columns fail.
     id_col = _find_student_id_column(keys)
     name_col = _find_column(keys, ['name of students', 'name of student', 'student name', 'student_name', 'full name', 'name'])
+
+    # A generic "No." column on attendance sheets is a row number, not a
+    # student identifier. Attendance matching should use the named student
+    # column; an actual explicit student ID header remains usable.
+    if name_col and name_col.strip().lower() in {"name of students", "name of student", "student name"}:
+        explicit_id_col = _find_column(
+            keys,
+            ['id number', 'student id', 'student_id', 'student no.', 'student number', 'student no', 'school id', 'sid'],
+        )
+        id_col = explicit_id_col
 
     student_email = _normalize_cell(row.get(email_col, '')).lower() if email_col else ''
     student_name = _build_full_name(row, keys)

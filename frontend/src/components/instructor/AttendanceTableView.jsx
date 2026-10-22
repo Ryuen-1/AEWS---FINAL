@@ -47,10 +47,10 @@ export default function AttendanceTableView({ students, format = 'monthly' }) {
       <div className="space-y-4">
         <ScrollTableContainer>
           <table className="table-polish w-full text-sm">
-            <thead className="sticky top-0 z-10">
+            <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="px-4 py-3 text-left font-semibold text-slate-700 sticky left-0 bg-slate-50 z-10">ID</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700 sticky left-16 bg-slate-50 z-10">Name</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">ID</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Name</th>
                 <th className="px-4 py-3 text-center font-semibold text-slate-700">Present</th>
                 <th className="px-4 py-3 text-center font-semibold text-slate-700">Absent</th>
                 <th className="px-4 py-3 text-center font-semibold text-slate-700">Attendance %</th>
@@ -101,10 +101,10 @@ export default function AttendanceTableView({ students, format = 'monthly' }) {
     <div className="space-y-4">
       <ScrollTableContainer>
         <table className="table-polish w-full text-sm">
-          <thead className="sticky top-0 z-10">
+          <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
-              <th className="px-4 py-3 text-left font-semibold text-slate-700 sticky left-0 bg-slate-50 z-10">ID</th>
-              <th className="px-4 py-3 text-left font-semibold text-slate-700 sticky left-16 bg-slate-50 z-10">Name</th>
+              <th className="px-4 py-3 text-left font-semibold text-slate-700">ID</th>
+              <th className="px-4 py-3 text-left font-semibold text-slate-700">Name</th>
               {monthAbbrev.map((m, i) => (
                 <th key={i} className="px-2 py-3 text-center font-semibold text-slate-600 text-xs">{m}</th>
               ))}
