@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { User, Mail, GraduationCap, Users, CheckCircle, XCircle } from 'lucide-react'
 import { getAdminPendingAccounts, approvePendingAccount, declinePendingAccount } from '../../api'
 import ScrollTableContainer from '../ScrollTableContainer'
@@ -74,8 +75,8 @@ export default function AdminPendingAccounts() {
 
   return (
     <div className="space-y-4">
-      {showApproveSuccess && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="alert" aria-live="polite">
+      {showApproveSuccess && createPortal(
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4" role="alert" aria-live="polite">
           <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
           <div className="relative flex flex-col items-center gap-3 rounded-2xl bg-white shadow-xl border border-emerald-200 p-6 max-w-[280px]">
             <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
@@ -84,7 +85,8 @@ export default function AdminPendingAccounts() {
             <p className="text-lg font-semibold text-gray-900">Account confirmed</p>
             <p className="text-sm text-gray-500 text-center">The user can now sign in. They will receive a confirmation email.</p>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
       <p className="text-sm text-gray-600 leading-6">
         Instructor and AMU Staff signups appear here. Approve to activate their account and send a confirmation email, or decline to reject the request.

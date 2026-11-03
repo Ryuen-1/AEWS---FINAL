@@ -191,7 +191,7 @@ def _signup_instructor_amu_flow(db, coll, body, existing, doc_base):
 
 @router.post("/signup")
 @limiter.limit("5/minute")  # Limit signup attempts to prevent spam
-def signup(request, body: SignUpRequest):
+def signup(request: Request, body: SignUpRequest):
     try:
         # Validate email format
         normalized_email = _validate_email_format(body.email)
