@@ -1140,6 +1140,36 @@ def _predict_with_model(model, features: Dict[str, Any]):
         return None
 
 
+def _missing_prediction_requirements(doc: dict) -> list[str]:
+    """Check source records before feature defaults can hide missing inputs."""
+    def has_number(value, minimum=0, maximum=None):
+        if isinstance(value, bool):
+            return False
+        try:
+            number = float(str(value).strip().rstrip("%"))
+            return math.isfinite(number) and number >= minimum and (maximum is None or number <= maximum)
+        except (TypeError, ValueError):
+            return False
+
+    missing = []
+    if not has_number(doc.get("midterm_grade")):
+        missing.append("midterm grades")
+    if not any(has_number(doc.get(key), maximum=100) for key in ("attendance_overall", "attendance", "attendance_rate")):
+        missing.append("attendance")
+    assessment = doc.get("needs_assessment")
+    if not isinstance(assessment, dict) or not any(
+        value is not None and str(value).strip() != ""
+        for key, value in assessment.items()
+        if not key.startswith("_") and key not in {"academic_challenge_score", "external_factor_score"}
+    ):
+        missing.append("completed needs assessment")
+    else:
+        form = (doc.get("needs_assessment_invitation") or {}).get("form")
+        if _collect_missing_required_needs_assessment_fields(assessment, form):
+            missing.append("completed needs assessment")
+    return missing
+
+
 @router.post("/referrals/{ref_id:path}/predict")
 def predict_referral(ref_id: str, actor: dict = Depends(get_current_actor)):
     """Generate a risk prediction for a referred student using needs assessment and enrollment metrics.
@@ -1152,23 +1182,19 @@ def predict_referral(ref_id: str, actor: dict = Depends(get_current_actor)):
         doc = _find_referral_doc(db, class_id, identifier)
         if not doc:
             raise HTTPException(status_code=404, detail="Referral not found.")
-        if not doc.get("needs_assessment"):
+        missing = _missing_prediction_requirements(doc)
+        if missing:
+            message = "These things should be uploaded or completed first: " + ", ".join(missing) + "."
             return {
-                "prediction_status": "awaiting_needs_assessment",
+                "prediction_status": "insufficient_data",
+                "prediction": None,
+                "risk": "Insufficient Data",
+                "prediction_label": "Insufficient Data",
                 "probability": None,
-                "prediction_label": "Awaiting needs assessment",
-                "prediction_basis": "awaiting_needs_assessment",
-                "message": "Upload a needs assessment first before AMU can run the prediction.",
-                "contributing_factors": [],
-                "academic_weight_reasons": [],
-                "external_weight_reasons": [],
-                "academic_weight_score": 0,
-                "external_weight_score": 0,
-                "risk_source": None,
-                "risk_source_label": None,
+                "reason": message,
+                "message": message,
+                "missing_requirements": missing,
                 "used_model": False,
-                "model_source": None,
-                "support_routing": _serialize_support_routing(doc),
             }
 
         normalized_needs_assessment = _normalize_needs_assessment_payload(doc.get("needs_assessment") or {})

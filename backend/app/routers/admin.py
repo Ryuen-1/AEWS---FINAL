@@ -4,6 +4,7 @@ students at risk, department stats, instructors list, trends, and needs-assessme
 """
 from datetime import datetime, timezone
 import copy
+import base64
 from pathlib import Path
 import subprocess
 import sys
@@ -907,6 +908,8 @@ def get_general_report_data():
 
 def _generate_html_report(total_enrollments, at_risk_count, dept_count, instructor_count, at_risk_students):
     """Generate HTML report for browser PDF preview."""
+    logo_path = Path(__file__).resolve().parents[1] / "assets" / "buksu-logo.png"
+    logo_url = "data:image/png;base64," + base64.b64encode(logo_path.read_bytes()).decode("ascii")
     from fastapi.responses import HTMLResponse
     from datetime import datetime
     
@@ -1016,7 +1019,7 @@ def _generate_html_report(total_enrollments, at_risk_count, dept_count, instruct
       </head>
       <body>
         <div class="header" style="display: flex; align-items: center; justify-content: center; gap: 20px; text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 20px; margin-bottom: 30px;">
-          <img src="/buksu-logo.png" alt="BukSU Logo" style="width: 80px; height: 80px; object-fit: contain;" />
+          <img src="{logo_url}" alt="BukSU Logo" style="width: 80px; height: 80px; object-fit: contain;" />
           <div>
             <div style="font-weight: bold; font-size: 18px; font-family: 'Times New Roman', Times, serif;">BUKIDNON STATE UNIVERSITY</div>
             <div style="font-size: 14px; font-family: 'Times New Roman', Times, serif;">Malaybalay City, Bukidnon 8700</div>

@@ -3,6 +3,7 @@ import { FileText, Download } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { downloadAdminReport, previewAdminReport, getAdminGeneralReportData } from '../../api'
 import { sortStudentsByName } from '../../lib/studentSort'
+import { printReportHtml } from '../../utils/reportLetterhead'
 import { downloadReportDocx, downloadReportExcel } from '../../utils/reportExport'
 
 export default function AdminInstitutionReports() {
@@ -67,6 +68,7 @@ export default function AdminInstitutionReports() {
     const payload = {
       filename: 'institution-general-report',
       title: 'Institution Performance Report',
+      metadata: ['Institution-wide student performance and enrollment data'],
       summary: [
         { label: 'Total Enrollments', value: reportData.summary?.total_enrollments ?? 0 },
         { label: 'Total Sections', value: reportData.summary?.total_sections ?? 0 },
@@ -86,7 +88,7 @@ export default function AdminInstitutionReports() {
     setDownloading(true)
     try {
       if (exportFormat === 'docx') await downloadReportDocx(payload)
-      if (exportFormat === 'xlsx') downloadReportExcel(payload)
+      if (exportFormat === 'xlsx') await downloadReportExcel(payload)
     } catch (e) {
       setError(e?.message || 'Download failed')
     } finally {
@@ -100,17 +102,10 @@ export default function AdminInstitutionReports() {
   }
 
   const handleDownloadPdf = () => {
-    const printWindow = window.open('', '_blank')
-    if (printWindow) {
-      printWindow.document.open()
-      printWindow.document.write(pdfHtmlContent)
-      printWindow.document.close()
-      printWindow.onload = () => {
-        printWindow.focus()
-        printWindow.print()
-      }
-    } else {
-      setError('Please allow pop-ups to download/print the PDF.')
+    try {
+      printReportHtml(pdfHtmlContent)
+    } catch (err) {
+      setError(err.message)
     }
   }
 

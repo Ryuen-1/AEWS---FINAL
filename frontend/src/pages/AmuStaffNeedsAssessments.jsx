@@ -252,6 +252,7 @@ export default function AmuStaffNeedsAssessments() {
     try {
       setIsPredicting(true)
       let successCount = 0
+      let incompleteCount = 0
 
       for (const refId of uniqueRefIds) {
         try {
@@ -271,13 +272,13 @@ export default function AmuStaffNeedsAssessments() {
                   ? {
                       ...item,
                       amu_prediction: data,
-                      amu_prediction_generated_at: new Date().toISOString(),
+                      amu_prediction_generated_at: null,
                       prediction_error: data.reason || "Insufficient data for prediction",
                     }
                   : item,
               ),
             )
-            successCount += 1  // Count as processed even if insufficient data
+            incompleteCount += 1
           } else {
             successCount += 1
             setItems((prev) =>
@@ -298,13 +299,14 @@ export default function AmuStaffNeedsAssessments() {
       }
 
       if (successCount > 0) {
-        setToastMessage(`Prediction completed for ${successCount} student${successCount === 1 ? '' : 's'}.`)
+        setToastMessage(`Prediction completed for ${successCount} student${successCount === 1 ? '' : 's'}.${incompleteCount ? ` ${incompleteCount} blocked: upload or complete the missing requirements shown below first.` : ''}`)
       } else {
-        setToastMessage('No predictions were completed.')
+        setToastMessage(incompleteCount > 0
+          ? `Prediction blocked for ${incompleteCount} student${incompleteCount === 1 ? '' : 's'}. Upload or complete the missing requirements shown below first.`
+          : 'No predictions were completed.')
       }
     } finally {
       setIsPredicting(false)
-      fetchData()
     }
   }
 

@@ -3556,7 +3556,7 @@ async def preview_classlist(
 # --- Upload gradesheet/attendance/classlist for a class ---
 @router.post("/{class_id}/upload", status_code=201)
 @limiter.limit("20/hour")  # Limit file uploads to prevent abuse
-async def upload_class_files(
+def upload_class_files(
     request: Request,
     class_id: str,
     actor: dict = Depends(get_current_actor),
@@ -4183,7 +4183,7 @@ def _detect_file_type(keys):
 
 @router.post("/upload-classlist", status_code=201)
 @limiter.limit("20/hour")  # Limit classlist uploads
-async def upload_and_create_classlist(
+def upload_and_create_classlist(
     request: Request,
     actor: dict = Depends(get_current_actor),
     files: List[UploadFile] = File(..., description="CSV, XLSX, or DOCX files (Classlist, Gradesheet, or Attendance)"),
@@ -4740,21 +4740,29 @@ def list_classes(instructor_id: str, actor: dict = Depends(get_current_actor)):
     """List all active classes for an instructor."""
     try:
         db = get_db()
-        cursor = db.classes.find({
+        class_docs = list(db.classes.find({
             "instructor_id": instructor_id,
             "status": {"$ne": "archived"}
-        }).sort("subject_code", 1)
+        }).sort("subject_code", 1))
+        class_ids = [str(doc["_id"]) for doc in class_docs]
+        summaries = {}
+        if class_ids:
+            # Fetch only summary fields once, rather than three queries per class.
+            for enrollment in db.enrollments.find(
+                {"class_id": {"$in": class_ids}},
+                {"class_id": 1, "flagged_for_mentoring": 1, "section_code": 1},
+            ):
+                summary = summaries.setdefault(enrollment["class_id"], {"count": 0, "at_risk": 0, "section_code": None})
+                summary["count"] += 1
+                summary["at_risk"] += enrollment.get("flagged_for_mentoring") is True
+                if summary["section_code"] is None and enrollment.get("section_code") is not None:
+                    summary["section_code"] = enrollment["section_code"]
         classes = []
-        for doc in cursor:
-            class_id = str(doc["_id"])
-            count = db.enrollments.count_documents({"class_id": class_id})
-            at_risk = db.enrollments.count_documents(
-                {"class_id": class_id, "flagged_for_mentoring": True}
-            )
-            # Get section_code from first enrollment that has it
-            enrollment = db.enrollments.find_one({"class_id": class_id, "section_code": {"$exists": True, "$ne": None}})
-            section_code = enrollment.get("section_code") if enrollment else None
-            classes.append(_doc_to_class_response(doc, count, at_risk, section_code))
+        for doc in class_docs:
+            summary = summaries.get(str(doc["_id"]), {})
+            classes.append(_doc_to_class_response(
+                doc, summary.get("count", 0), summary.get("at_risk", 0), summary.get("section_code")
+            ))
         return classes
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")

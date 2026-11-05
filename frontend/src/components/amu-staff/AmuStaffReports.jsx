@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { getAmuStaffReports } from '../../api'
 import { useAuth } from '../../context/AuthContext'
 import ScrollTableContainer from '../ScrollTableContainer'
+import { reportLetterheadHtml, printReportHtml } from '../../utils/reportLetterhead'
 import { downloadReportCsv, downloadReportDocx, downloadReportExcel } from '../../utils/reportExport'
 
 const VERDICT_META = [
@@ -183,19 +184,10 @@ export default function AmuStaffReports() {
           </style>
         </head>
         <body>
-          <div class="header" style="display: flex; align-items: center; justify-content: center; gap: 20px; text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 20px; margin-bottom: 30px;">
-            <img src="${window.location.origin}/buksu-logo.png" alt="BukSU Logo" style="width: 80px; height: 80px; object-fit: contain;" />
-            <div>
-              <div style="font-weight: bold; font-size: 18px; font-family: 'Times New Roman', Times, serif;">BUKIDNON STATE UNIVERSITY</div>
-              <div style="font-size: 14px; font-family: 'Times New Roman', Times, serif;">Malaybalay City, Bukidnon 8700</div>
-              <div style="font-size: 12px; font-family: 'Times New Roman', Times, serif; margin-bottom: 15px;">Tel (088) 813-5661 to 5663; TeleFax (088) 813-2717, www.buksu.edu.ph</div>
-              <h1 style="font-size: 18px; margin-top: 10px; font-family: Arial, sans-serif;">Consolidated Referral and Support Report</h1>
-              <p class="meta" style="margin: 0; padding: 0;">Academic Monitoring Unit</p>
-              <p class="meta" style="margin: 0; padding: 0;">Staff Member: ${user?.name || 'Not specified'}</p>
-              <p class="meta" style="margin: 0; padding: 0;">College: ${user?.college || 'Not specified'}</p>
-            </div>
-            <div style="width: 80px;"></div>
-          </div>
+          ${reportLetterheadHtml({
+            title: 'Consolidated Referral and Support Report',
+            metadata: [`Staff Member: ${user?.name || 'Not specified'}`, `College: ${user?.college || 'Not specified'}`],
+          })}
 
           <p class="print-note">Use your browser's destination set to "Save as PDF" to download this report as a PDF file.</p>
 
@@ -288,6 +280,7 @@ export default function AmuStaffReports() {
     const payload = {
       filename: 'amu-referral-report',
       title: 'Consolidated Referral and Support Report',
+      metadata: [`Staff Member: ${user?.name || 'Not specified'}`, `College: ${user?.college || 'Not specified'}`],
       summary: [
         { label: 'Reporting Period', value: reportingPeriod },
         { label: 'Total Referrals', value: totalReferrals },
@@ -306,7 +299,7 @@ export default function AmuStaffReports() {
     try {
       if (exportFormat === 'csv') downloadReportCsv(payload)
       if (exportFormat === 'docx') await downloadReportDocx(payload)
-      if (exportFormat === 'xlsx') downloadReportExcel(payload)
+      if (exportFormat === 'xlsx') await downloadReportExcel(payload)
     } catch (err) {
       setError(err.message || 'Failed to export report.')
     } finally {
@@ -320,17 +313,10 @@ export default function AmuStaffReports() {
   }
 
   const handleDownloadPdf = () => {
-    const printWindow = window.open('', '_blank')
-    if (printWindow) {
-      printWindow.document.open()
-      printWindow.document.write(pdfHtmlContent)
-      printWindow.document.close()
-      printWindow.onload = () => {
-        printWindow.focus()
-        printWindow.print()
-      }
-    } else {
-      setError('Please allow pop-ups to download/print the PDF.')
+    try {
+      printReportHtml(pdfHtmlContent)
+    } catch (err) {
+      setError(err.message)
     }
   }
 

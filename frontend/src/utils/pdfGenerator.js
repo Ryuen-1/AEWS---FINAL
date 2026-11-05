@@ -1,22 +1,8 @@
-import jsPDF from 'jspdf'
+import { jsPDF } from 'jspdf'
 import 'jspdf-autotable'
 import html2canvas from 'html2canvas' // eslint-disable-line no-unused-vars
 
-const getBase64ImageFromUrl = async (imageUrl) => {
-  try {
-    const res = await fetch(imageUrl);
-    const blob = await res.blob();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  } catch (err) {
-    console.error('Error fetching image:', err);
-    return null;
-  }
-};
+import { drawPdfLetterhead } from './reportLetterhead.js'
 
 const FIELD_SECTION_MAP = {
   // Academic
@@ -125,48 +111,7 @@ export async function generateNeedsAssessmentPDF(needsAssessment, studentInfo, r
   let yPosition = margin
   const groupedEntries = groupAssessmentEntries(needsAssessment)
 
-  // Document heading
-  try {
-    const logoBase64 = await getBase64ImageFromUrl(window.location.origin + '/buksu-logo.png');
-    if (logoBase64) {
-      pdf.addImage(logoBase64, 'PNG', pageWidth / 2 - 10, yPosition, 20, 20);
-    }
-    yPosition += 25;
-  } catch (e) {
-    console.error('Failed to load logo for PDF', e);
-  }
-
-  pdf.setTextColor(17, 24, 39);
-  pdf.setFont(undefined, 'bold');
-  pdf.setFontSize(14);
-  pdf.text('BUKIDNON STATE UNIVERSITY', pageWidth / 2, yPosition, { align: 'center' });
-  yPosition += 6;
-
-  pdf.setFont(undefined, 'normal');
-  pdf.setFontSize(10);
-  pdf.text('Malaybalay City, Bukidnon 8700', pageWidth / 2, yPosition, { align: 'center' });
-  yPosition += 5;
-
-  pdf.setFontSize(9);
-  pdf.setTextColor(71, 85, 105);
-  pdf.text('Tel (088) 813-5661 to 5663; TeleFax (088) 813-2717, www.buksu.edu.ph', pageWidth / 2, yPosition, { align: 'center' });
-  yPosition += 10;
-
-  pdf.setTextColor(17, 24, 39);
-  pdf.setFontSize(15);
-  pdf.setFont(undefined, 'bold');
-  pdf.text('Needs Assessment Form', pageWidth / 2, yPosition, { align: 'center' });
-  yPosition += 6;
-
-  pdf.setFontSize(9);
-  pdf.setFont(undefined, 'normal');
-  pdf.setTextColor(107, 114, 128);
-  pdf.text('Academic Early Warning System', pageWidth / 2, yPosition, { align: 'center' });
-  yPosition += 8;
-
-  pdf.setDrawColor(226, 232, 240);
-  pdf.line(margin, yPosition, pageWidth - margin, yPosition);
-  yPosition += 8;
+  yPosition = await drawPdfLetterhead(pdf, { title: 'Needs Assessment Form', margin })
 
   // Student information block
   const infoTop = yPosition

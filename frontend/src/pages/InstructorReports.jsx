@@ -20,6 +20,7 @@ import {
   listClassStudents,
 } from '../api'
 import { sortStudentsByName } from '../lib/studentSort'
+import { reportLetterheadHtml, printReportHtml } from '../utils/reportLetterhead'
 import { downloadReportDocx, downloadReportExcel } from '../utils/reportExport'
 
 const NEEDS_ASSESSMENT_FIELDS = [
@@ -306,6 +307,11 @@ export default function InstructorReports() {
     const payload = {
       filename: fileBase,
       title: 'Student Performance Report',
+      metadata: [
+        [classInfo.subject_code, classInfo.subject_name].filter(Boolean).join(' - '),
+        `Section: ${classInfo.section_code || 'No section code'}`,
+        `Instructor: ${classInfo.instructor_name || 'Not specified'}`,
+      ],
       summary: [
         { label: 'Course', value: [classInfo.subject_code, classInfo.subject_name].filter(Boolean).join(' - ') },
         { label: 'Section', value: classInfo.section_code || '-' },
@@ -323,7 +329,7 @@ export default function InstructorReports() {
     }
     try {
       if (exportFormat === 'docx') await downloadReportDocx(payload)
-      if (exportFormat === 'xlsx') downloadReportExcel(payload)
+      if (exportFormat === 'xlsx') await downloadReportExcel(payload)
       setReportError('')
       setReportMessage(`Section report exported as ${exportFormat === 'docx' ? 'Word document' : 'Excel workbook'} successfully.`)
     } catch (err) {
@@ -473,20 +479,14 @@ export default function InstructorReports() {
           </style>
         </head>
         <body>
-          <div class="header" style="display: flex; align-items: center; justify-content: center; gap: 20px; text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 20px; margin-bottom: 30px;">
-            <img src="${window.location.origin}/buksu-logo.png" alt="BukSU Logo" style="width: 80px; height: 80px; object-fit: contain;" />
-            <div>
-              <div style="font-weight: bold; font-size: 18px; font-family: 'Times New Roman', Times, serif;">BUKIDNON STATE UNIVERSITY</div>
-              <div style="font-size: 14px; font-family: 'Times New Roman', Times, serif;">Malaybalay City, Bukidnon 8700</div>
-              <div style="font-size: 12px; font-family: 'Times New Roman', Times, serif; margin-bottom: 15px;">Tel (088) 813-5661 to 5663; TeleFax (088) 813-2717, www.buksu.edu.ph</div>
-              <h1 style="font-size: 18px; margin-top: 10px; font-family: Arial, sans-serif;">Student Performance Report</h1>
-              <p class="meta" style="margin: 0; padding: 0;">Academic Monitoring Unit</p>
-              <p class="meta" style="margin: 0; padding: 0;">${classInfo.subject_code || ''} ${classInfo.subject_name ? `- ${classInfo.subject_name}` : ''}</p>
-              <p class="meta" style="margin: 0; padding: 0;">Section: ${classInfo.section_code || 'No section code'}</p>
-              <p class="meta" style="margin: 0; padding: 0;">Instructor: ${classInfo.instructor_name || 'Not specified'}</p>
-            </div>
-            <div style="width: 80px;"></div>
-          </div>
+          ${reportLetterheadHtml({
+            title: 'Student Performance Report',
+            metadata: [
+              [classInfo.subject_code, classInfo.subject_name].filter(Boolean).join(' - '),
+              `Section: ${classInfo.section_code || 'No section code'}`,
+              `Instructor: ${classInfo.instructor_name || 'Not specified'}`,
+            ],
+          })}
 
           <p class="print-note">Use your browser's destination set to "Save as PDF" to download this report as a PDF file.</p>
 
@@ -549,17 +549,10 @@ export default function InstructorReports() {
   }
 
   const handleDownloadPdf = () => {
-    const printWindow = window.open('', '_blank')
-    if (printWindow) {
-      printWindow.document.open()
-      printWindow.document.write(pdfHtmlContent)
-      printWindow.document.close()
-      printWindow.onload = () => {
-        printWindow.focus()
-        printWindow.print()
-      }
-    } else {
-      setReportError('Please allow pop-ups to download/print the PDF.')
+    try {
+      printReportHtml(pdfHtmlContent)
+    } catch (err) {
+      setReportError(err.message)
     }
   }
 

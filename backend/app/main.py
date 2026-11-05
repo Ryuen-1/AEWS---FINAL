@@ -12,10 +12,10 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from app.database import get_db
+from app.database import get_db, ensure_query_indexes
 from app.routers import auth, users, students, notifications, classes, admin, amu_staff, activity_logs
 from app.errors import AppError
-from pymongo.errors import ServerSelectionTimeoutError
+from pymongo.errors import ServerSelectionTimeoutError, PyMongoError
 
 # Configure logging
 logging.basicConfig(
@@ -31,7 +31,11 @@ load_dotenv(_backend_dir / ".env")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    get_db()
+    from starlette.concurrency import run_in_threadpool
+    try:
+        await run_in_threadpool(ensure_query_indexes, get_db())
+    except PyMongoError:
+        logging.getLogger(__name__).exception("Could not create query indexes; continuing startup")
     # Confirm SMTP from .env is connected for verification emails
     smtp_user = (os.getenv("SMTP_USER") or "").strip()
     smtp_pass = (os.getenv("SMTP_PASSWORD") or "").strip()

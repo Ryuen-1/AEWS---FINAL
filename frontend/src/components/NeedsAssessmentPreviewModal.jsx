@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom'
 import { X, Download } from 'lucide-react'
 import { generateNeedsAssessmentPDF, downloadPDF } from '../utils/pdfGenerator'
+import { reportLetterheadHtml } from '../utils/reportLetterhead'
 
 export default function NeedsAssessmentPreviewModal({ isOpen, onClose, needsAssessment, studentInfo, referralInfo }) {
   if (!isOpen) return null
@@ -33,14 +34,7 @@ export default function NeedsAssessmentPreviewModal({ isOpen, onClose, needsAsse
         {/* Content */}
         <div className="overflow-y-auto flex-1 px-6 py-6">
           {/* BukSU Header */}
-          <div className="flex flex-col items-center justify-center text-center border-b-2 border-slate-900 pb-5 mb-6">
-            <img src="/buksu-logo.png" alt="BukSU Logo" className="w-16 h-16 object-contain mb-3" />
-            <div className="font-bold text-lg font-serif text-slate-900">BUKIDNON STATE UNIVERSITY</div>
-            <div className="text-sm font-serif text-slate-800">Malaybalay City, Bukidnon 8700</div>
-            <div className="text-xs font-serif text-slate-600 mb-2">Tel (088) 813-5661 to 5663; TeleFax (088) 813-2717, www.buksu.edu.ph</div>
-            <h1 className="text-lg font-bold mt-2 font-sans text-slate-900">Needs Assessment Form</h1>
-            <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider font-semibold">Academic Early Warning System</p>
-          </div>
+          <div dangerouslySetInnerHTML={{ __html: reportLetterheadHtml({ title: 'Needs Assessment Form' }) }} />
 
           {/* Student Info */}
           <div className="mb-6">
