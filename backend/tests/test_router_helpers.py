@@ -1,6 +1,7 @@
 import sys
 import tempfile
 import unittest
+from unittest.mock import MagicMock, patch
 from pathlib import Path
 
 
@@ -20,6 +21,10 @@ from app.routers.classes import (
     _find_student_id_column,
     _validate_parsed_data,
     _parse_daily_attendance,
+    _build_auto_referral_reasons,
+    _build_gradesheet_update_payload,
+    _parse_file_to_rows,
+    _apply_automatic_referral,
 )  # noqa: E402
 from app.ai_features import _bool_to_int  # noqa: E402
 from app.ai_model import _can_make_prediction  # noqa: E402
@@ -27,6 +32,43 @@ from app.routers.students import _profile_is_complete  # noqa: E402
 
 
 class ClassesHelperTests(unittest.TestCase):
+    def test_excel_midterm_five_automatically_refers_even_without_staff(self):
+        from openpyxl import Workbook
+        for grade in (5, 5.0, "5", "5.00", 2.5):
+            with self.subTest(grade=grade), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "grades.xlsx"
+                workbook = Workbook()
+                workbook.active.append(["Student ID", "Student Name", "MTG"])
+                workbook.active.append(["1234567890", "Sample Student", grade])
+                workbook.save(path)
+                workbook.close()
+                row = _parse_file_to_rows(path, preferred_type="gradesheet")[0]
+                updates, _ = _build_gradesheet_update_payload(row, list(row), {}, {}, set())
+                self.assertEqual(updates["midterm_grade"], float(grade))
+                for staff in (None, {"_id": "staff", "name": "Staff", "college": "College"}):
+                    db = MagicMock()
+                    enrollment = {"_id": "enrollment", **updates}
+                    with patch("app.routers.classes._find_amu_staff_for_college", return_value=staff), patch(
+                        "app.routers.classes._ensure_student_account", return_value=("", "", False)
+                    ), patch("app.routers.classes.create_notification"):
+                        _apply_automatic_referral(db, {"_id": "class"}, enrollment)
+                    saved = db.enrollments.update_one.call_args.args[1]["$set"]
+                    self.assertTrue(saved["flagged_for_mentoring"])
+                    self.assertTrue(enrollment["flagged_for_mentoring"])
+                    self.assertEqual(saved["referral_status"], "Referred")
+
+    def test_midterm_referral_includes_numeric_and_text_grade_boundaries(self):
+        for grade in (2.5, 2.75, 3.0, 5, 5.0, "2.50", "5", "5.00", " 5.00 "):
+            with self.subTest(grade=grade):
+                reasons = _build_auto_referral_reasons({"midterm_grade": grade})
+                self.assertTrue(reasons["mtg_grade_2_5_and_above"])
+
+    def test_midterm_referral_rejects_values_outside_grade_point_range(self):
+        for grade in (None, True, "", "INC", 0, 2.49, 5.01, 75, "nan", "inf"):
+            with self.subTest(grade=grade):
+                reasons = _build_auto_referral_reasons({"midterm_grade": grade})
+                self.assertFalse(reasons["mtg_grade_2_5_and_above"])
+
     def test_normalize_cell_handles_numeric_excel_values(self):
         self.assertEqual(_normalize_cell(2201103564.0), "2201103564")
         self.assertEqual(_normalize_cell(2.5), "2.5")

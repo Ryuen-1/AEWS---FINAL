@@ -152,14 +152,16 @@ def _matches_numeric_referral_threshold(value, *, max_value: float) -> bool:
 
 
 def _matches_midterm_referral_threshold(value) -> bool:
-    if not isinstance(value, (int, float)):
+    # Older records may store grade points as numeric strings.
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
         return False
-    numeric = float(value)
-    if numeric <= 0:
+    try:
+        numeric = float(value)
+    except (ValueError, TypeError):
         return False
-    # Refer students with MTG grades of 2.5 and above (including 2.5, 2.75, 3.0, and 5.0)
+    # Refer grade points from 2.50 through 5.00, inclusive.
     # This is the whole midterm grade, not CS, LAB, or MO components
-    return numeric >= 2.5
+    return 2.5 <= numeric <= 5.0
 
 
 def _build_auto_referral_reasons(enrollment: dict) -> dict[str, bool]:
@@ -617,12 +619,10 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
     instructor_college = _normalize_cell((instructor_doc or {}).get("college"))
 
     assigned_staff = _find_amu_staff_for_college(db, instructor_college)
-    if not assigned_staff:
-        return False
-
-    assigned_staff_id = str(assigned_staff["_id"])
-    assigned_staff_name = _normalize_cell(assigned_staff.get("name"))
-    assigned_staff_college = _normalize_cell(assigned_staff.get("college")) or None
+    # Eligibility comes from the gradesheet, independently of staff availability.
+    assigned_staff_id = str(assigned_staff["_id"]) if assigned_staff else None
+    assigned_staff_name = _normalize_cell(assigned_staff.get("name")) if assigned_staff else ""
+    assigned_staff_college = (_normalize_cell(assigned_staff.get("college")) or None) if assigned_staff else None
     already_assigned = (
         _normalize_cell(enrollment_doc.get("assigned_amu_staff_id")) == assigned_staff_id
         and _normalize_cell(enrollment_doc.get("assigned_amu_staff_name")) == assigned_staff_name
@@ -721,6 +721,7 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
         update_data["referred_at"] = datetime.now(timezone.utc)
 
     db.enrollments.update_one({"_id": enrollment_doc["_id"]}, {"$set": update_data})
+    enrollment_doc.update(update_data)
 
     class_label = f"{subject_code}" + (f": {subject_name}" if subject_name else "")
     student_label = (
@@ -753,19 +754,20 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
         )
     
     if not already_referred:
-        create_notification(
-            db,
-            role="amu-staff",
-            recipient_user_id=assigned_staff_id,
-            title="Student auto-referred by system",
-            body=(
-                f"Student {student_label} met the automatic referral criteria in "
-                f"{class_label} and was assigned to {assigned_staff_name}"
-                f"{f' - {assigned_staff_college}' if assigned_staff_college else ''}. "
-                f"Please review the case."
-            ),
-            type="alert",
-        )
+        if assigned_staff_id:
+            create_notification(
+                db,
+                role="amu-staff",
+                recipient_user_id=assigned_staff_id,
+                title="Student auto-referred by system",
+                body=(
+                    f"Student {student_label} met the automatic referral criteria in "
+                    f"{class_label} and was assigned to {assigned_staff_name}"
+                    f"{f' - {assigned_staff_college}' if assigned_staff_college else ''}. "
+                    f"Please review the case."
+                ),
+                type="alert",
+            )
         create_notification(
             db,
             role="instructor",
@@ -773,8 +775,8 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
             title="Student auto-referred to AMU",
             body=(
                 f"{student_label} from {class_label} was automatically referred to "
-                f"{assigned_staff_name}{f' - {assigned_staff_college}' if assigned_staff_college else ''} "
-                f"based on MTG grade between 3.0 and 5.0."
+                f"{assigned_staff_name or 'AMU (awaiting staff assignment)'}{f' - {assigned_staff_college}' if assigned_staff_college else ''} "
+                f"based on MTG grade between 2.50 and 5.00."
             ),
             type="info",
         )
@@ -789,7 +791,7 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
                 title="Student referral updated",
                 body=(
                     f"{student_label} from {class_label} referral status was updated "
-                    f"based on MTG grade between 3.0 and 5.0."
+                    f"based on MTG grade between 2.50 and 5.00."
                 ),
                 type="info",
             )
