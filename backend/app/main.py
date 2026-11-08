@@ -35,6 +35,8 @@ async def lifespan(app: FastAPI):
     from starlette.concurrency import run_in_threadpool
     try:
         await run_in_threadpool(ensure_query_indexes, get_db())
+        from app.referral_assignments import reconcile_referral_assignments
+        await run_in_threadpool(reconcile_referral_assignments, get_db())
     except PyMongoError:
         logging.getLogger(__name__).exception("Could not create query indexes; continuing startup")
     # Confirm SMTP from .env is connected for verification emails

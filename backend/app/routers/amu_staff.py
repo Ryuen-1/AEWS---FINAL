@@ -1,3 +1,4 @@
+from app.colleges import college_for
 """AMU Staff endpoints: referrals (flagged enrollments), overview stats, reports."""
 from datetime import datetime, timedelta, timezone
 from bson import ObjectId
@@ -249,7 +250,7 @@ def list_referrals(risk: str | None = None, search: str | None = None, actor: di
                 inst_doc = db.instructor.find_one({"_id": ObjectId(class_doc["instructor_id"])})
                 if inst_doc:
                     instructor_name = inst_doc.get("name") or instructor_name
-                    college = (inst_doc.get("college") or "").strip()
+                    college = college_for(inst_doc)
             student_doc = db.students.find_one({"email": student_email}) if student_email else None
             student_name = (student_doc.get("name") if student_doc else None) or _normalize_referral_value(doc.get("student_name")) or student_id or student_email
             referred_at = doc.get("referred_at")
@@ -271,7 +272,7 @@ def list_referrals(risk: str | None = None, search: str | None = None, actor: di
                 "subject_name": class_doc.get("subject_name") or "",
                 "section_code": class_doc.get("section_code") or "",
                 "college": college,
-                "student_college": (student_doc or {}).get("college") or "",
+                "student_college": college_for(student_doc),
                 "student_program": (student_doc or {}).get("program") or "",
                 "student_year_level": (student_doc or {}).get("year_level") or "",
                 "risk": doc.get("risk") or "—",
@@ -383,7 +384,7 @@ def get_referral(ref_id: str):
             inst_doc = db.instructor.find_one({"_id": ObjectId(class_doc["instructor_id"])})
             if inst_doc:
                 instructor_name = inst_doc.get("name") or instructor_name
-                college = (inst_doc.get("college") or "").strip()
+                college = college_for(inst_doc)
         student_email = _normalize_referral_value(doc.get("student_email")).lower()
         student_id = _normalize_referral_value(doc.get("student_id"))
         student_doc = db.students.find_one({"email": student_email}) if student_email else None
@@ -400,7 +401,7 @@ def get_referral(ref_id: str):
             "subject_name": class_doc.get("subject_name") or "",
             "section_code": class_doc.get("section_code") or "",
             "college": college,
-            "student_college": (student_doc or {}).get("college") or "",
+            "student_college": college_for(student_doc),
             "student_program": (student_doc or {}).get("program") or "",
             "student_year_level": (student_doc or {}).get("year_level") or "",
             "course": class_doc.get("subject_code") or "",

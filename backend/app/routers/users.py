@@ -1,3 +1,4 @@
+from app.colleges import college_for, normalize_college
 import logging
 import os
 import re
@@ -28,6 +29,7 @@ def _user_doc_to_response(doc, role: str) -> dict:
     out = {k: v for k, v in doc.items() if k not in {"_id", "password_hash", "email_change", "email_change_last_requested"}}
     out["id"] = str(doc["_id"])
     out["role"] = role
+    out["college"] = college_for(doc)
     # Ensure college field is always present
     if "college" not in out or not out.get("college"):
         out["college"] = out.get("department") or ""
@@ -213,6 +215,7 @@ def create_user(body: UserCreate, actor: dict = Depends(get_current_actor)):
         raise HTTPException(status_code=400, detail="this email is already used")
     doc = body.model_dump()
     doc["email"] = body.email.strip().lower()
+    doc["college"] = normalize_college(doc.get("college"))
     password = doc.pop("password", None)
     if password:
         doc["password_hash"] = _hash_password(password)
@@ -267,6 +270,8 @@ def update_user(user_id: str, body: UserUpdate, actor: dict = Depends(get_curren
         payload.pop("role", None)
         payload.pop("college", None)
         payload.pop("status", None)
+    if "college" in payload:
+        payload["college"] = normalize_college(payload["college"])
     if "email" in payload and payload["email"] is None:
         raise HTTPException(status_code=400, detail="Email is required")
     new_email = payload.get("email")

@@ -375,8 +375,9 @@ export async function updateUser(userId, payload) {
 }
 
 /** List all students. Optional search by name/email. */
-export async function getStudents(search = '') {
+export async function getStudents(search = '', accountsOnly = false) {
   const params = new URLSearchParams()
+  if (accountsOnly) params.set('accounts_only', 'true')
   if (search && String(search).trim()) params.set('search', String(search).trim())
   const qs = params.toString()
   const url = `${API_BASE}/api/students${qs ? `?${qs}` : ''}`

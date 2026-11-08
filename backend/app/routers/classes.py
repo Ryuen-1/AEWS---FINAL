@@ -1,3 +1,4 @@
+from app.colleges import normalize_college, college_match, college_for
 from datetime import datetime, timezone
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Form, Request
@@ -209,15 +210,25 @@ def _stale_amu_prediction_unset() -> dict[str, str]:
     }
 
 
-def _find_amu_staff_for_college(db, college: str) -> dict | None:
-    college_name = _normalize_cell(college).strip()
+def _find_amu_staff_for_college(db, college: str, assigned_staff_id=None) -> dict | None:
+    college_name = normalize_college(college)
     if not college_name:
         return None
+    if ObjectId.is_valid(assigned_staff_id):
+        existing = db.amustaff.find_one({
+            "_id": ObjectId(assigned_staff_id), "archived": {"$ne": True},
+            "status": {"$in": ["active", None, ""]},
+        })
+        if existing and college_for(existing) == college_name:
+            return existing
     return db.amustaff.find_one(
         {
             "archived": {"$ne": True},
             "status": {"$in": ["active", None, ""]},
-            "college": {"$regex": f"^{re.escape(college_name)}$", "$options": "i"},
+            "$or": [
+                {"college": college_match(college_name)},
+                {"college": {"$in": [None, ""]}, "department": college_match(college_name)},
+            ],
         },
         sort=[("name", 1), ("_id", 1)],
     )
@@ -243,9 +254,9 @@ def _ensure_student_account(db, enrollment_doc: dict) -> tuple[str, str, bool]:
     import logging
     logger = logging.getLogger(__name__)
     
-    student_email = enrollment_doc.get("student_email") or ""
+    student_email = str(enrollment_doc.get("student_email") or "").strip().lower()
     student_name = enrollment_doc.get("student_name") or ""
-    student_id = enrollment_doc.get("student_id") or ""
+    student_id = _normalize_student_id(enrollment_doc.get("student_id") or enrollment_doc.get("id_number"))
     
     logger.info(f"Checking student account for: {student_name} (email: {student_email}, id: {student_id})")
     
@@ -259,14 +270,20 @@ def _ensure_student_account(db, enrollment_doc: dict) -> tuple[str, str, bool]:
             return "", "", False
     
     # Check if student account exists (by email or student ID)
-    existing_student = db.students.find_one({
-        "$or": [
-            {"email": student_email.lower()},
-            {"id_number": student_id}
-        ]
-    })
+    existing_student = db.students.find_one({"email": {"$regex": f"^{re.escape(student_email)}$", "$options": "i"}})
+    if not existing_student and student_id:
+        identifiers = [student_id]
+        if student_id.isdigit() and int(student_id) <= 9223372036854775807:
+            identifiers.append(int(student_id))
+        existing_student = db.students.find_one({"id_number": {"$in": identifiers}})
     
     if existing_student:
+        existing_email = str(existing_student.get("email") or "")
+        if existing_email.strip().lower() == student_email and existing_email != student_email:
+            # The login lookup uses a normalized email. Legacy class-list
+            # profiles must use that same address before credentials are sent.
+            db.students.update_one({"_id": existing_student["_id"]}, {"$set": {"email": student_email}})
+            existing_student["email"] = student_email
         logger.info(f"Student account already exists for {student_email}")
         logger.info(f"  Found existing student: {existing_student.get('name')}, email: {existing_student.get('email')}, id_number: {existing_student.get('id_number')}")
         logger.info(f"  Current enrollment email: {enrollment_doc.get('student_email')}, id: {enrollment_doc.get('student_id')}")
@@ -274,7 +291,19 @@ def _ensure_student_account(db, enrollment_doc: dict) -> tuple[str, str, bool]:
         # If an uploaded class list created the student profile first, the account
         # may already exist but still have no usable login credentials. Generate
         # credentials in that case and send them with the referral emails.
-        if not existing_student.get("password_hash") or existing_student.get("credentials_delivery_pending"):
+        undelivered_legacy_account = False
+        if (existing_student.get("auto_created") and not existing_student.get("credentials_delivered_at")
+                and not existing_student.get("profile_completed") and not existing_student.get("password_changed_at")):
+            # Older versions created the account before sending credentials and
+            # did not record a failed delivery on the account itself.
+            delivery_identity = [{"student_email": {"$regex": f"^{re.escape(student_email)}$", "$options": "i"}}]
+            if student_id:
+                delivery_identity.extend([{ "student_id": student_id }, { "id_number": student_id }])
+            undelivered_legacy_account = db.enrollments.find_one({
+                "$or": delivery_identity,
+                "referral_emails_sent.credentials": {"$exists": True, "$nin": [None, "", False]},
+            }) is None
+        if not existing_student.get("password_hash") or existing_student.get("credentials_delivery_pending") or undelivered_legacy_account:
             password = _generate_password()
             updates = {
                 "password_hash": _hash_password(password),
@@ -354,6 +383,14 @@ def _ensure_student_account(db, enrollment_doc: dict) -> tuple[str, str, bool]:
 
 def _send_referral_emails(db, enrollment_doc: dict, class_doc: dict, assigned_staff_name: str, student_email: str, password: str, is_new_account: bool):
     """Send one referral email containing the assessment link and account access."""
+    if is_new_account and not password:
+        # Never downgrade a fresh account's credentials email to email-only text.
+        db.enrollments.update_one(
+            {"_id": enrollment_doc["_id"]},
+            {"$set": {"needs_assessment_invitation.last_error": "Credentials email requires a generated password."}},
+        )
+        logger.error("Credentials email withheld because a new account has no generated password")
+        return
     latest = db.enrollments.find_one({"_id": enrollment_doc["_id"]}) or enrollment_doc
     emails_sent = dict(latest.get("referral_emails_sent") or {})
     if emails_sent.get("combined_referral"):
@@ -387,8 +424,8 @@ def _send_referral_emails(db, enrollment_doc: dict, class_doc: dict, assigned_st
     if success:
         if is_new_account and password:
             db.students.update_one(
-                {"email": student_email.lower(), "credentials_delivery_pending": True},
-                {"$unset": {"credentials_delivery_pending": ""}},
+                {"email": {"$regex": f"^{re.escape(student_email)}$", "$options": "i"}, "credentials_delivery_pending": True},
+                {"$set": {"credentials_delivered_at": datetime.now(timezone.utc)}, "$unset": {"credentials_delivery_pending": ""}},
             )
         now = datetime.now(timezone.utc)
         timestamp = now.isoformat()
@@ -406,14 +443,14 @@ def _send_referral_emails(db, enrollment_doc: dict, class_doc: dict, assigned_st
 def _deliver_student_referral_email(db, enrollment_doc, class_doc, assigned_staff_name):
     latest = db.enrollments.find_one({"_id": enrollment_doc["_id"]}) or enrollment_doc
     sent = latest.get("referral_emails_sent") or {}
-    if sent.get("combined_referral") or (
-        sent.get("referral_notice") and sent.get("needs_assessment")
-        and (sent.get("credentials") or sent.get("welcome_existing_account"))
-    ):
-        return
     enrollment_doc = latest
     # Ensure student account exists and get credentials
     student_email, password, is_new_account = _ensure_student_account(db, enrollment_doc)
+    if is_new_account and password and sent:
+        # Old delivery flags must not suppress credentials for a recreated account
+        # or an auto-created account that previously received only welcome text.
+        db.enrollments.update_one({"_id": latest["_id"]}, {"$unset": {"referral_emails_sent": ""}})
+        enrollment_doc.pop("referral_emails_sent", None)
 
     # Refresh the enrollment document to get the updated email if it was added
     if student_email and not enrollment_doc.get("student_email"):
@@ -546,17 +583,17 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
     instructor_id = class_doc.get("instructor_id")
     if instructor_id and ObjectId.is_valid(instructor_id):
         instructor_doc = db.instructor.find_one({"_id": ObjectId(instructor_id)})
-    instructor_college = _normalize_cell((instructor_doc or {}).get("college"))
+    instructor_college = normalize_college((instructor_doc or {}).get("college") or (instructor_doc or {}).get("department"))
 
-    assigned_staff = _find_amu_staff_for_college(db, instructor_college)
+    assigned_staff = _find_amu_staff_for_college(db, instructor_college, enrollment_doc.get("assigned_amu_staff_id"))
     # Eligibility comes from the gradesheet, independently of staff availability.
     assigned_staff_id = str(assigned_staff["_id"]) if assigned_staff else None
     assigned_staff_name = _normalize_cell(assigned_staff.get("name")) if assigned_staff else ""
-    assigned_staff_college = (_normalize_cell(assigned_staff.get("college")) or None) if assigned_staff else None
+    assigned_staff_college = (college_for(assigned_staff) or None) if assigned_staff else None
     already_assigned = (
         _normalize_cell(enrollment_doc.get("assigned_amu_staff_id")) == assigned_staff_id
         and _normalize_cell(enrollment_doc.get("assigned_amu_staff_name")) == assigned_staff_name
-        and _normalize_cell(enrollment_doc.get("assigned_amu_staff_college")) == (assigned_staff_college or "")
+        and normalize_college(enrollment_doc.get("assigned_amu_staff_college")) == (assigned_staff_college or "")
     )
     merged_reasons = {**existing_reasons, **reasons}
     next_source = "automatic_academic"

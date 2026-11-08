@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { User, Mail, GraduationCap, Search, MoreVertical, ChevronRight, CheckCircle, X, Trash2, Building2, Save, Info, RefreshCw } from 'lucide-react'
-import { getReferredStudents, deleteStudent, getStudent, updateStudent } from '../../api'
+import { User, Mail, GraduationCap, Search, MoreVertical, ChevronRight, CheckCircle, X, XCircle, Trash2, Building2, Save, Info, RefreshCw } from 'lucide-react'
+import { getStudents, deleteStudent, getStudent, updateStudent } from '../../api'
 import HeaderAwareOverlay from '../HeaderAwareOverlay'
 import ScrollTableContainer from '../ScrollTableContainer'
 
@@ -24,7 +24,7 @@ export default function AdminStudentAccounts() {
   const fetchStudents = () => {
     setLoading(true)
     setError(null)
-    getReferredStudents(search)
+    getStudents(search, true)
       .then(setStudents)
       .catch((e) => {
         setError(e?.message || 'Failed to load students')
@@ -162,28 +162,7 @@ export default function AdminStudentAccounts() {
     }
   }
 
-  const uniqueStudentsMap = new Map()
-  for (const student of students) {
-    const idNumber = String(student?.id_number || '').trim().toLowerCase()
-    const email = String(student?.email || '').trim().toLowerCase()
-    const name = String(student?.name || '').trim().toLowerCase()
-    const key = idNumber || email || name || String(student?.id || '')
-    const existing = uniqueStudentsMap.get(key)
-    if (!existing) {
-      uniqueStudentsMap.set(key, student)
-      continue
-    }
-
-    const existingCreated = existing?.created_at ? String(existing.created_at) : ''
-    const currentCreated = student?.created_at ? String(student.created_at) : ''
-    if (!existingCreated && currentCreated) {
-      uniqueStudentsMap.set(key, student)
-    } else if (existingCreated && currentCreated && currentCreated > existingCreated) {
-      uniqueStudentsMap.set(key, student)
-    }
-  }
-
-  const sortedStudents = [...uniqueStudentsMap.values()].sort((a, b) => 
+  const sortedStudents = [...students].sort((a, b) =>
     String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
   )
 
@@ -197,7 +176,7 @@ export default function AdminStudentAccounts() {
       )}
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Referred Students</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Student Accounts</h3>
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
@@ -232,7 +211,7 @@ export default function AdminStudentAccounts() {
               ) : sortedStudents.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-5 py-8 text-center text-sm text-gray-500">
-                    No referred students found. Students will appear here when they are referred by instructors.
+                    No student accounts found.
                   </td>
                 </tr>
               ) : (

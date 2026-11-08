@@ -1,3 +1,4 @@
+from app.colleges import normalize_college
 from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
@@ -86,6 +87,9 @@ class StudentUpdate(BaseModel):
 
 class StudentResponse(StudentBase):
     id: str
+    # Legacy and class-list-only profiles can exist before an email is assigned.
+    # Input schemas still require and validate email for new accounts.
+    email: Optional[EmailStr] = None
     id_number: Optional[str] = None
     created_at: Optional[str] = None
     auto_created: Optional[bool] = None
@@ -148,7 +152,7 @@ class SignUpRequest(BaseModel):
     def validate_organization_field(self):
         self.name = self.name.strip()
         self.contact_number = self.contact_number.strip()
-        self.college = self.college.strip()
+        self.college = normalize_college(self.college)
 
         if not self.name:
             raise ValueError("Full name is required")

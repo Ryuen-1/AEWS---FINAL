@@ -1,3 +1,4 @@
+from app.colleges import college_for, normalize_college
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Body
 from pymongo import ReturnDocument
@@ -98,7 +99,7 @@ def _profile_is_complete(student_doc: dict) -> bool:
 
 def _student_profile_fields(student_doc: dict) -> dict:
     return {
-        "college": student_doc.get("college") or "",
+        "college": college_for(student_doc),
         "program": student_doc.get("program") or "",
         "year_level": student_doc.get("year_level") or "",
         "profile_completed": _profile_is_complete(student_doc),
@@ -220,7 +221,7 @@ def update_public_student_profile(body: dict):
 
     for field in profile_fields:
         if field in body and body.get(field) is not None:
-            value = str(body[field]).strip()
+            value = normalize_college(body[field]) if field == "college" else str(body[field]).strip()
             if len(value) > 100:
                 raise HTTPException(status_code=400, detail=f"{field.replace('_', ' ').title()} must be 100 characters or fewer.")
             if value:
@@ -452,15 +453,16 @@ def get_public_student_dashboard(student_id: str):
 
 
 @router.get("", response_model=list[StudentResponse])
-def list_students(search: str | None = None, actor: dict = Depends(get_current_actor)):
+def list_students(search: str | None = None, actor: dict = Depends(get_current_actor), accounts_only: bool = False):
     if actor["role"] != "admin":
         raise HTTPException(status_code=403, detail="Forbidden")
     db = get_db()
-    q = {}
+    q = {"password_hash": {"$exists": True, "$nin": ["", None]}} if accounts_only else {}
     if search:
         q["$or"] = [
             {"name": {"$regex": search, "$options": "i"}},
             {"email": {"$regex": search, "$options": "i"}},
+            {"id_number": {"$regex": search, "$options": "i"}},
         ]
     cursor = db.students.find(q)
     return sorted([_doc_to_response(d) for d in cursor], key=_student_name_sort_key)

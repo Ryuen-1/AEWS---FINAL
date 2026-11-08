@@ -1,3 +1,4 @@
+from app.colleges import college_for, college_match
 """
 Admin-only endpoints for system overview: KPIs, departments (from instructors only),
 students at risk, department stats, instructors list, trends, and needs-assessment form config.
@@ -140,7 +141,7 @@ def _instructor_ids_by_department(db, department: str | None):
     """
     q = {"archived": {"$ne": True}}
     if department and department != "all":
-        q["department"] = department
+        q["$or"] = [{"college": college_match(department)}, {"college": {"$in": [None, ""]}, "department": college_match(department)}]
     cursor = db.instructor.find(q, {"_id": 1})
     return [str(doc["_id"]) for doc in cursor]
 
@@ -274,7 +275,7 @@ def get_student_by_email(student_identifier: str):
                 "course": (c.get("subject_code", "") + " " + c.get("subject_name", "")).strip(),
                 "instructor_id": c.get("instructor_id", ""),
                 "instructor_name": (inst.get("name", "") if inst else ""),
-                "department": (inst.get("department", "") if inst else ""),
+                "department": college_for(inst),
                 "prediction_label": "External Factor" if e.get("risk_source") == "external_factors" else ("Academic Problem" if e.get("risk_source") else None),
                 "gpa": e.get("gpa"),
                 "attendance": e.get("attendance"),
@@ -288,7 +289,7 @@ def get_student_by_email(student_identifier: str):
             "student_email": first.get("student_email"),
             "student_id": first.get("student_id"),
             "student_name": first.get("student_name"),
-            "college": (student_doc or {}).get("college") or "",
+            "college": college_for(student_doc),
             "program": (student_doc or {}).get("program") or "",
             "year_level": (student_doc or {}).get("year_level") or "",
             "enrollments": rows,
@@ -303,7 +304,7 @@ def list_instructor_departments():
     """List unique department names from non-archived instructors only."""
     try:
         db = get_db()
-        depts = db.instructor.distinct("department", {"archived": {"$ne": True}})
+        depts = {college_for(doc) for doc in db.instructor.find({"archived": {"$ne": True}})}
         return [d for d in sorted(depts) if d]
     except ServerSelectionTimeoutError:
         return []
@@ -376,7 +377,7 @@ def list_students_at_risk(department: str | None = None):
             inst_id = c.get("instructor_id")
             inst = instructor_by_id.get(ObjectId(inst_id)) if ObjectId.is_valid(inst_id) else None
             inst_name = (inst.get("name") or "") if inst else ""
-            dept = (inst.get("department") or "") if inst else ""
+            dept = college_for(inst)
             course = (c.get("subject_code") or "") + " " + (c.get("subject_name") or "")
             student_identifier = _student_identifier(doc)
             
@@ -422,14 +423,14 @@ def list_departments_stats(department: str | None = None):
         instructors = list(db.instructor.find({"_id": {"$in": [ObjectId(i) for i in instructor_ids]}}))
         dept_to_instructor_ids = {}
         for inst in instructors:
-            d = (inst.get("college") or inst.get("department") or "").strip()
+            d = college_for(inst)
             if not d:
                 continue
             sid = str(inst["_id"])
             dept_to_instructor_ids.setdefault(d, []).append(sid)
         classes = list(db.classes.find({"instructor_id": {"$in": instructor_ids}, "status": {"$ne": "archived"}}))
         class_ids = [str(c["_id"]) for c in classes]
-        inst_id_to_dept = {str(i["_id"]): (i.get("college") or i.get("department") or "").strip() for i in instructors}
+        inst_id_to_dept = {str(i["_id"]): college_for(i) for i in instructors}
         class_to_inst = {str(c["_id"]): c.get("instructor_id") for c in classes}
         enrollments = list(db.enrollments.find({"class_id": {"$in": class_ids}}))
         dept_totals = {}
@@ -490,7 +491,7 @@ def list_overview_instructors(department: str | None = None):
                 "id": iid,
                 "name": inst.get("name") or "",
                 "email": inst.get("email") or "",
-                "college": inst.get("college") or inst.get("department") or "",
+                "college": college_for(inst),
                 "classes": inst_class_count.get(iid, 0),
                 "students": inst_students.get(iid, 0),
                 "atRisk": inst_at_risk.get(iid, 0),
@@ -534,14 +535,14 @@ def get_analytics_department_chart(department: str | None = None):
         instructors = list(db.instructor.find({"_id": {"$in": [ObjectId(i) for i in instructor_ids]}}))
         dept_to_instructor_ids = {}
         for inst in instructors:
-            d = (inst.get("department") or "").strip()
+            d = college_for(inst)
             if not d:
                 continue
             dept_to_instructor_ids.setdefault(d, []).append(str(inst["_id"]))
         classes = list(db.classes.find({"instructor_id": {"$in": instructor_ids}}))
         class_ids = [str(c["_id"]) for c in classes]
         class_to_inst = {str(c["_id"]): c.get("instructor_id") for c in classes}
-        inst_id_to_dept = {str(i["_id"]): (i.get("department") or "").strip() for i in instructors}
+        inst_id_to_dept = {str(i["_id"]): college_for(i) for i in instructors}
         enrollments = list(db.enrollments.find({"class_id": {"$in": class_ids}}))
         dept_totals = {}
         dept_at_risk = {}
@@ -767,7 +768,7 @@ def _build_reports_list(db) -> list[dict]:
     """Build list of available reports. Primary entry is the generalized institution report."""
     from datetime import datetime
     today = datetime.utcnow().strftime("%b %d, %Y")
-    depts = [d for d in sorted(db.instructor.distinct("department", {"archived": {"$ne": True}})) if d]
+    depts = [d for d in sorted({college_for(doc) for doc in db.instructor.find({"archived": {"$ne": True}})}) if d]
     reports = [
         {"id": "general", "name": "Institution General Report", "type": "General", "date": today, "department": "All", "description": "Single report with institution-wide summary, at-risk students, and department performance."},
     ]
@@ -810,7 +811,7 @@ def get_general_report_data():
         # Summary stats
         total_enrollments = db.enrollments.count_documents({"class_id": {"$in": class_ids}})
         at_risk_count = db.enrollments.count_documents({"class_id": {"$in": class_ids}, "flagged_for_mentoring": True})
-        dept_count = len([d for d in db.instructor.distinct("department", {"archived": {"$ne": True}}) if d])
+        dept_count = len([d for d in {college_for(doc) for doc in db.instructor.find({"archived": {"$ne": True}})} if d])
         instructor_count = len(instructor_ids)
 
         # At-risk students data
@@ -820,7 +821,7 @@ def get_general_report_data():
             if not c:
                 continue
             inst = instructor_by_id.get(ObjectId(c["instructor_id"])) if ObjectId.is_valid(c.get("instructor_id")) else None
-            dept = (inst.get("department") or "") if inst else ""
+            dept = college_for(inst)
             course = (c.get("subject_code") or "") + " " + (c.get("subject_name") or "")
             instr_name = (inst.get("name") or "") if inst else ""
             
@@ -863,7 +864,7 @@ def get_general_report_data():
 
         # Department performance data
         class_to_inst = {str(c["_id"]): c.get("instructor_id") for c in classes}
-        inst_to_dept = {str(i["_id"]): (i.get("department") or "").strip() for i in db.instructor.find({"archived": {"$ne": True}})}
+        inst_to_dept = {str(i["_id"]): college_for(i) for i in db.instructor.find({"archived": {"$ne": True}})}
         enrollments = list(db.enrollments.find({"class_id": {"$in": class_ids}}))
         dept_total = {}
         dept_at_risk = {}
@@ -1101,7 +1102,7 @@ def download_report(report_id: str, format: str = "csv"):
             # Summary stats
             total_enrollments = db.enrollments.count_documents({"class_id": {"$in": class_ids}})
             at_risk_count = db.enrollments.count_documents({"class_id": {"$in": class_ids}, "flagged_for_mentoring": True})
-            dept_count = len([d for d in db.instructor.distinct("department", {"archived": {"$ne": True}}) if d])
+            dept_count = len([d for d in {college_for(doc) for doc in db.instructor.find({"archived": {"$ne": True}})} if d])
             instructor_count = len(instructor_ids)
 
             # Collect at-risk students data
@@ -1225,7 +1226,7 @@ def download_report(report_id: str, format: str = "csv"):
         # at-risk-{DepartmentName}: at-risk students in that department (id built as at-risk- + dept with spaces -> dashes)
         if report_id.startswith("at-risk-"):
             slug = report_id.replace("at-risk-", "")
-            depts = [d for d in db.instructor.distinct("department", {"archived": {"$ne": True}}) if d]
+            depts = [d for d in {college_for(doc) for doc in db.instructor.find({"archived": {"$ne": True}})} if d]
             matching = next((d for d in depts if d.replace(" ", "-").replace(",", "") == slug), None)
             if not matching:
                 matching = next((d for d in depts if slug.lower() in d.replace(" ", "-").replace(",", "").lower()), None)
@@ -1280,16 +1281,16 @@ def download_report(report_id: str, format: str = "csv"):
 
         # department-performance: departments with total and at-risk counts (excludes archived instructors)
         if report_id == "department-performance":
-            stats = list(db.instructor.find({"archived": {"$ne": True}}, {"_id": 1, "department": 1}))
+            stats = list(db.instructor.find({"archived": {"$ne": True}}, {"_id": 1, "department": 1, "college": 1}))
             dept_to_ids = {}
             for s in stats:
-                d = (s.get("department") or "").strip()
+                d = college_for(s)
                 if d:
                     dept_to_ids.setdefault(d, []).append(str(s["_id"]))
             classes = list(db.classes.find({}))
             class_ids = [str(c["_id"]) for c in classes]
             class_to_inst = {str(c["_id"]): c.get("instructor_id") for c in classes}
-            inst_to_dept = {str(i["_id"]): (i.get("department") or "").strip() for i in db.instructor.find({"archived": {"$ne": True}})}
+            inst_to_dept = {str(i["_id"]): college_for(i) for i in db.instructor.find({"archived": {"$ne": True}})}
             enrollments = list(db.enrollments.find({"class_id": {"$in": class_ids}}))
             dept_total = {}
             dept_at_risk = {}
@@ -1320,6 +1321,7 @@ def _user_doc_to_response(doc, role: str) -> dict:
     out = {k: v for k, v in doc.items() if k != "_id" and k != "password_hash"}
     out["id"] = str(doc["_id"])
     out["role"] = role
+    out["college"] = college_for(doc)
     return out
 
 
@@ -1496,7 +1498,7 @@ def list_pending_accounts():
                     "name": doc.get("name", ""),
                     "email": doc.get("email", ""),
                     "role": role_label,
-                    "college": doc.get("college") or doc.get("department") or "",
+                    "college": college_for(doc),
                     "contact_number": doc.get("contact_number", ""),
                     "status": doc.get("status", "pending"),
                 })

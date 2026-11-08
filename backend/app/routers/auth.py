@@ -1,3 +1,4 @@
+from app.colleges import college_for
 import json
 import logging
 import os
@@ -141,7 +142,7 @@ def _signup_admin_flow(db, coll, body, existing, doc_base):
         "name": doc["name"],
         "email": doc["email"],
         "role": doc["role"],
-        "college": doc.get("college") or doc.get("department"),
+        "college": college_for(doc),
         "status": doc["status"],
         "contact_number": doc.get("contact_number", ""),
         "email_verified": False,
@@ -179,7 +180,7 @@ def _signup_instructor_amu_flow(db, coll, body, existing, doc_base):
         "name": doc["name"],
         "email": doc["email"],
         "role": doc["role"],
-        "college": doc.get("college") or doc.get("department"),
+        "college": college_for(doc),
         "status": doc["status"],
         "contact_number": doc.get("contact_number", ""),
         "email_verified": False,
@@ -521,7 +522,7 @@ def login(request: Request, body: LoginRequest):
             "name": user["name"],
             "email": user["email"],
             "role": user["role"],
-            "college": user.get("college") or user.get("department", ""),
+            "college": college_for(user),
             "contact_number": user.get("contact_number", ""),
             "status": user.get("status", "active"),
             "profile_image": user.get("profile_image"),

@@ -116,3 +116,48 @@ def test_failed_cleanup_leaves_enrollments_and_account_available_for_retry(monke
     students.delete_student(str(student_id), actor={'role': 'admin'})
     assert db.students.count_documents({}) == 0
     assert db.enrollments.count_documents({}) == 0
+
+
+def test_admin_account_list_includes_unverified_legacy_accounts_and_duplicates(monkeypatch):
+    db = mongomock.MongoClient().test
+    legacy = db.students.insert_one({'name': 'Legacy Student', 'email': '2201102063@student.buksu.edu.ph',
+                                     'id_number': '2201102063', 'password_hash': 'legacy'}).inserted_id
+    duplicate = db.students.insert_one({'name': 'Duplicate Profile', 'email': 'other@example.com',
+                                        'id_number': '2201102063', 'email_verified': False}).inserted_id
+    monkeypatch.setattr(students, 'get_db', lambda: db)
+    accounts = students.list_students(actor={'role': 'admin'})
+    assert {row['id'] for row in accounts} == {str(legacy), str(duplicate)}
+    filtered = students.list_students(search='2201102063', actor={'role': 'admin'})
+    assert {row['id'] for row in filtered} == {str(legacy), str(duplicate)}
+
+
+def test_full_student_list_response_accepts_legacy_profiles_without_email(monkeypatch):
+    from pydantic import TypeAdapter, ValidationError
+    from app.schemas import StudentResponse, StudentCreate
+    db = mongomock.MongoClient().test
+    db.students.insert_many([
+        {'name': 'No Email Yet', 'id_number': '2201102063'},
+        {'name': 'Null Email', 'email': None},
+        {'name': 'Has Email', 'email': 'student@example.com'},
+    ])
+    monkeypatch.setattr(students, 'get_db', lambda: db)
+    response = students.list_students(actor={'role': 'admin'})
+    validated = TypeAdapter(list[StudentResponse]).validate_python(response)
+    assert len(validated) == 3
+    assert sum(row.email is None for row in validated) == 2
+    with pytest.raises(ValidationError):
+        StudentCreate(name='New Account')
+
+
+def test_accounts_only_excludes_roster_profiles_but_includes_legacy_login_accounts(monkeypatch):
+    db = mongomock.MongoClient().test
+    actual = db.students.insert_one({'name': 'Legacy Account', 'id_number': '2201102063', 'password_hash': 'hash'}).inserted_id
+    db.students.insert_many([
+        {'name': 'Roster Only', 'email': 'roster@example.com'},
+        {'name': 'Empty Password', 'password_hash': ''},
+        {'name': 'Null Password', 'password_hash': None},
+    ])
+    monkeypatch.setattr(students, 'get_db', lambda: db)
+    result = students.list_students(actor={'role': 'admin'}, accounts_only=True)
+    assert [row['id'] for row in result] == [str(actual)]
+    assert len(students.list_students(actor={'role': 'admin'})) == 4

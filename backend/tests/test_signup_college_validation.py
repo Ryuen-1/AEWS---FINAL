@@ -29,7 +29,7 @@ def test_signup_accepts_each_configured_college(college):
     assert request.college == college
 
 
-@pytest.mark.parametrize("college", ["CIT", "College of Technology", ""])
+@pytest.mark.parametrize("college", ["CIT", "Unknown College", ""])
 def test_signup_rejects_unlisted_colleges(college):
     with pytest.raises(ValidationError, match="available registration options|College is required"):
         SignUpRequest(**signup_payload(college=college))
