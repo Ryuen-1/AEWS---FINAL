@@ -431,8 +431,8 @@ export default function ClassGrades() {
                 </div>
               ) : null}
             <ScrollTableContainer
-              size={activeView === 'topics-to-watch' ? 'regular' : 'compact'}
-              className={activeView === 'topics-to-watch' ? 'max-h-[32rem] overflow-auto' : ''}
+              size="regular"
+              className="min-h-[30rem] max-h-[calc(100vh-16rem)] overflow-auto"
             >
               {activeView === 'midterm-grade' ? (
                 <table className="table-polish w-full text-sm">

@@ -389,11 +389,9 @@ export default function DashboardLayout({
           </aside>
         )}
         {/* Main Content */}
-        <main className="clean-scrollbar flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-          <div className="max-w-[1680px] mx-auto px-3 sm:px-4 lg:px-5 py-4 sm:py-5">
-            <div className="ui-surface mx-auto w-full max-w-[1200px] rounded-2xl border border-[rgb(var(--role-accent))]/12 bg-white/68 p-4 shadow-sm shadow-[rgb(var(--role-accent))]/5 ring-1 ring-white/75 backdrop-blur-sm sm:p-5 lg:p-6">
-              {children}
-            </div>
+        <main className="clean-scrollbar min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+          <div className="ui-surface w-full rounded-2xl border border-[rgb(var(--role-accent))]/12 bg-white/68 p-4 shadow-sm shadow-[rgb(var(--role-accent))]/5 ring-1 ring-white/75 backdrop-blur-sm sm:p-5 lg:p-6">
+            {children}
           </div>
         </main>
       </div>

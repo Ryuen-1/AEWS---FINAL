@@ -45,7 +45,7 @@ export default function AttendanceTableView({ students, format = 'monthly' }) {
   if (format === 'daily') {
     return (
       <div className="space-y-4">
-        <ScrollTableContainer>
+        <ScrollTableContainer size="regular" className="min-h-[30rem] max-h-[calc(100vh-16rem)]">
           <table className="table-polish w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
@@ -99,7 +99,7 @@ export default function AttendanceTableView({ students, format = 'monthly' }) {
 
   return (
     <div className="space-y-4">
-      <ScrollTableContainer>
+      <ScrollTableContainer size="regular" className="min-h-[30rem] max-h-[calc(100vh-16rem)]">
         <table className="table-polish w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">

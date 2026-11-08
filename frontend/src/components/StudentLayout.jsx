@@ -84,11 +84,9 @@ export default function StudentLayout({ title = 'Student Dashboard', subtitle = 
           </nav>
         </aside>
 
-        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-          <div className="mx-auto max-w-[1680px] px-3 py-4 sm:px-4 sm:py-5 lg:px-5">
-            <div className="ui-surface mx-auto w-full max-w-[1200px] rounded-2xl border border-blue-100/70 bg-white/70 p-4 shadow-sm shadow-blue-500/5 ring-1 ring-white/75 backdrop-blur-sm sm:p-5 lg:p-6">
-              {children}
-            </div>
+        <main className="min-w-0 min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+          <div className="ui-surface w-full rounded-2xl border border-blue-100/70 bg-white/70 p-4 shadow-sm shadow-blue-500/5 ring-1 ring-white/75 backdrop-blur-sm sm:p-5 lg:p-6">
+            {children}
           </div>
         </main>
       </div>

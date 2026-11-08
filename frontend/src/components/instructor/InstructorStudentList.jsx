@@ -49,7 +49,7 @@ export default function InstructorStudentList() {
   }))
 
   return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden">
+    <div className="w-full min-w-0 max-w-none rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -102,14 +102,14 @@ export default function InstructorStudentList() {
 
         {!loading && !error && (
           <div className="rounded-xl border border-slate-200/80 overflow-hidden">
-            <ScrollTableContainer>
-              <table className="table-polish w-full text-left">
+            <ScrollTableContainer size="regular" className="min-h-[30rem] max-h-[calc(100vh-16rem)]">
+              <table className="table-polish w-full min-w-full table-fixed text-left">
                 <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Student</th>
-                    <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Class</th>
-                    <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Midterm Grade (MTG)</th>
-                    <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Attendance</th>
+                    <th className="w-[34%] px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Student</th>
+                    <th className="w-[38%] px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Class</th>
+                    <th className="w-[16%] px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Midterm Grade (MTG)</th>
+                    <th className="w-[12%] px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Attendance</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
