@@ -4,6 +4,7 @@ from pymongo import ReturnDocument
 from pymongo.errors import ServerSelectionTimeoutError
 import bcrypt
 import secrets
+import re
 from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel
 
@@ -578,6 +579,56 @@ def delete_student(student_id: str, actor: dict = Depends(get_current_actor)):
     db = get_db()
     if not ObjectId.is_valid(student_id):
         raise HTTPException(status_code=404, detail="Student not found")
-    result = db.students.delete_one({"_id": ObjectId(student_id)})
-    if not result.deleted_count:
+    student = db.students.find_one({"_id": ObjectId(student_id)})
+    if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+
+    emails = {str(student.get("email") or "").strip()} - {""}
+    identifiers = {str(student[field]).strip() for field in ("id_number", "student_id")
+                   if student.get(field) is not None} - {""}
+    enrollments_by_id = {}
+    while True:
+        identity_queries = []
+        for email in emails:
+            pattern = {"$regex": f"^\\s*{re.escape(email)}\\s*$", "$options": "i"}
+            identity_queries.extend({field: pattern} for field in ("student_email", "needs_assessment_invitation.email"))
+        for value in identifiers:
+            compact = re.sub(r"[\s_-]", "", _normalize_student_identifier(value))
+            if not compact:
+                continue
+            normalized = compact.lstrip('0') or '0'
+            pattern = r"^[0\s_-]*" + r"[\s_-]*".join(re.escape(char) for char in normalized) + r"(?:\.0)?\s*$"
+            for field in ("student_id", "id_number"):
+                identity_queries.append({field: {"$regex": pattern, "$options": "i"}})
+                if normalized.isdigit() and int(normalized) <= 9223372036854775807:
+                    identity_queries.append({field: int(normalized)})
+        matches = list(db.enrollments.find({"$or": identity_queries})) if identity_queries else []
+        new_matches = [row for row in matches if row["_id"] not in enrollments_by_id]
+        if not new_matches:
+            break
+        for row in new_matches:
+            enrollments_by_id[row["_id"]] = row
+            # Older records can contain only an email or only a student number.
+            # Follow the aliases found on this student's records across classes.
+            emails.update(str(value).strip() for value in (
+                row.get("student_email"), (row.get("needs_assessment_invitation") or {}).get("email")
+            ) if value and str(value).strip())
+            identifiers.update(str(row[field]).strip() for field in ("student_id", "id_number")
+                               if row.get(field) is not None and str(row[field]).strip())
+    enrollments = list(enrollments_by_id.values())
+    referral_ids = []
+    for enrollment in enrollments:
+        for field in ("student_email", "student_id", "id_number"):
+            identifier = str(enrollment.get(field) or "").strip()
+            if identifier:
+                referral_ids.append(f"{enrollment.get('class_id')}::{identifier}")
+                referral_ids.append(f"{enrollment.get('class_id')}::{identifier.lower()}")
+    if referral_ids:
+        db.activity_logs.delete_many({"target_type": "referral", "target_id": {"$in": referral_ids}})
+    db.activity_logs.delete_many({"target_type": "student", "target_id": student_id})
+    db.notifications.delete_many({"role": "student", "recipient_user_id": student_id})
+    db.refresh_tokens.delete_many({"collection": "students", "user_id": student_id})
+    if enrollments:
+        db.enrollments.delete_many({"_id": {"$in": [row["_id"] for row in enrollments]}})
+    # Delete the account last so a failed cleanup can be retried by the admin.
+    db.students.delete_one({"_id": student["_id"]})

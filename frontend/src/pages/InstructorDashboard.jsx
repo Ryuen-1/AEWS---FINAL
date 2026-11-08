@@ -1,3 +1,4 @@
+import { pickClasslistSource, saveClasslistSource, readDroppedClasslists } from '../lib/classlistSource'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -147,6 +148,7 @@ export default function InstructorDashboard() {
   const [classSearch, setClassSearch] = useState('')
   const [archivingId, setArchivingId] = useState(null)
   const fileInputRef = useRef(null)
+  const classlistHandlesRef = useRef([])
 
   useEffect(() => {
     if (!user) {
@@ -225,8 +227,14 @@ export default function InstructorDashboard() {
     
     setAddClassSubmitting(true)
     try {
-      const response = await uploadAndCreateClasslist(uploadedFiles)
-      setUploadResponse(response)
+      const currentFiles = classlistHandlesRef.current.length
+        ? await Promise.all(classlistHandlesRef.current.map(handle => handle.getFile()))
+        : uploadedFiles
+      const response = await uploadAndCreateClasslist(currentFiles)
+      if (classlistHandlesRef.current.length === 1 && response.class_id) {
+        await saveClasslistSource(user?.id, response.class_id, classlistHandlesRef.current[0])
+      }
+      setUploadResponse({ ...response, sourceLinked: classlistHandlesRef.current.length === 1 })
       setUploadStage('success')
     } catch (err) {
       setAddClassError(err.message || 'Failed to upload class list')
@@ -237,13 +245,25 @@ export default function InstructorDashboard() {
 
   const handleFileSelect = (files) => {
     if (files && files.length > 0) {
+      classlistHandlesRef.current = []
       setUploadedFiles(Array.from(files))
       setUploadStage('upload')
     }
   }
 
-  const handleUploadClick = () => {
-    fileInputRef.current?.click()
+  const handleUploadClick = async () => {
+    if (!window.showOpenFilePicker) {
+      fileInputRef.current?.click()
+      return
+    }
+    try {
+      const handles = await pickClasslistSource(true)
+      const files = await Promise.all(handles.map(handle => handle.getFile()))
+      handleFileSelect(files)
+      classlistHandlesRef.current = handles
+    } catch (error) {
+      if (error.name !== 'AbortError') setAddClassError(error.message || 'Failed to read class list')
+    }
   }
 
   const handleFileInputChange = (e) => {
@@ -255,14 +275,22 @@ export default function InstructorDashboard() {
     e.stopPropagation()
   }
 
-  const handleDrop = (e) => {
+  const handleDrop = async (e) => {
     e.preventDefault()
     e.stopPropagation()
-    handleFileSelect(e.dataTransfer.files)
+    try {
+      const entries = await readDroppedClasslists(e.dataTransfer.items)
+      handleFileSelect(entries.map(entry => entry.file))
+      classlistHandlesRef.current = entries.every(entry => entry.handle)
+        ? entries.map(entry => entry.handle) : []
+    } catch (error) {
+      setAddClassError(error.message || 'Failed to read class list')
+    }
   }
 
   const handleCloseModal = () => {
     setShowAddClassModal(false)
+    classlistHandlesRef.current = []
     setUploadedFiles([])
     setUploadStage('upload')
     setUploadResponse(null)
@@ -497,6 +525,7 @@ export default function InstructorDashboard() {
                           onClick={handleUploadClick}
                         >
                           <input
+                            onClick={(event) => event.stopPropagation()}
                             ref={fileInputRef}
                             type="file"
                             multiple
@@ -514,6 +543,7 @@ export default function InstructorDashboard() {
                               <p className="text-xs text-slate-500 mt-1">or click to browse</p>
                             </div>
                             <p className="text-[11px] text-slate-400 mt-2">Supports CSV, XLSX, or DOCX files</p>
+                            <p className="text-xs text-slate-500">Your class list file is linked during upload so future updates can read your saved edits.</p>
                           </div>
                         </div>
 
@@ -575,6 +605,11 @@ export default function InstructorDashboard() {
                           <div>
                             <p className="font-semibold text-green-900 text-sm">Class created successfully!</p>
                             <p className="text-xs text-green-700 mt-0.5">Students have been added to your class.</p>
+                            <p className="text-xs text-green-700 mt-1">
+                              {uploadResponse.sourceLinked
+                                ? 'Class list file linked automatically. Save changes in this file, then click Update class list to preview them.'
+                                : 'Automatic file linking was unavailable. Use Link class list file on the class page to connect one source file for future updates.'}
+                            </p>
                           </div>
                         </div>
 

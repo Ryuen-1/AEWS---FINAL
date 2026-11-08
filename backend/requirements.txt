@@ -2,7 +2,7 @@
 # Installation command: pip install -r requirements.txt
 
 # Core Framework
-fastapi
+fastapi>=0.162.0,<1.0
 uvicorn
 
 # Database
@@ -30,7 +30,7 @@ pydantic-email-validator
 email-validator
 python-multipart
 requests
-starlette
+starlette>=0.52.1,<1.0
 httpx
 
 # Rate Limiting

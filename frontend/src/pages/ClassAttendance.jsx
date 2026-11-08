@@ -184,7 +184,6 @@ export default function ClassAttendance() {
   return (
     <DashboardLayout title="Instructor Dashboard" subtitle={instructorSubtitle}>
       <div className="space-y-4">
-        {attendanceError && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">{attendanceError}</div>}
         <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 shadow-sm">
           <input
             type="file"

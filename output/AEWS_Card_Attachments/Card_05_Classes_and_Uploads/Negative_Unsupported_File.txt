@@ -1,0 +1,1 @@
+Synthetic negative fixture. Upload as text/plain to the academic upload endpoint. Expected: unsupported-type rejection. This is not a valid classlist.

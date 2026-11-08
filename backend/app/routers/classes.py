@@ -30,7 +30,7 @@ from fastapi.responses import JSONResponse
 from app.activity_log_utils import create_activity_log
 from app.authz import get_current_actor
 from app.database import get_db
-from slowapi import Limiter
+from app.rate_limiting import Limiter
 from slowapi.util import get_remote_address
 
 # Create limiter instance for classes router
@@ -39,10 +39,7 @@ from app.ai_features import build_model_feature_dict
 from app.ai_model import _extract_topic_difficulty, _format_activity_title, predict_student_risk
 from app.notification_utils import create_notification
 from app.email_sender import (
-    send_referral_notice_email,
-    send_needs_assessment_email,
-    send_student_credentials_email,
-    send_existing_account_welcome_email,
+    send_combined_referral_email,
 )
 from app.schemas import (
     BatchAddStudentsRequest,
@@ -277,7 +274,7 @@ def _ensure_student_account(db, enrollment_doc: dict) -> tuple[str, str, bool]:
         # If an uploaded class list created the student profile first, the account
         # may already exist but still have no usable login credentials. Generate
         # credentials in that case and send them with the referral emails.
-        if not existing_student.get("password_hash"):
+        if not existing_student.get("password_hash") or existing_student.get("credentials_delivery_pending"):
             password = _generate_password()
             updates = {
                 "password_hash": _hash_password(password),
@@ -286,6 +283,7 @@ def _ensure_student_account(db, enrollment_doc: dict) -> tuple[str, str, bool]:
                 "email_verified": True,
                 "auto_created": True,
                 "profile_completed": False,
+                "credentials_delivery_pending": True,
             }
             if student_name and not existing_student.get("name"):
                 updates["name"] = student_name
@@ -314,7 +312,7 @@ def _ensure_student_account(db, enrollment_doc: dict) -> tuple[str, str, bool]:
             password_hash = _hash_password(password)
             db.students.update_one(
                 {"_id": existing_student["_id"]},
-                {"$set": {"password_hash": password_hash, "email_verified": True, "role": "student", "status": "active", "auto_created": True}}
+                {"$set": {"password_hash": password_hash, "email_verified": True, "role": "student", "status": "active", "auto_created": True, "credentials_delivery_pending": True}}
             )
             logger.info(f"  Generated new password for student with missing email")
             return student_email, password, True  # Treat as new account to send credentials
@@ -337,6 +335,7 @@ def _ensure_student_account(db, enrollment_doc: dict) -> tuple[str, str, bool]:
         "created_at": datetime.now(timezone.utc),
         "auto_created": True,  # Flag to indicate this was auto-created via referral
         "profile_completed": False,
+        "credentials_delivery_pending": True,
     }
     
     db.students.insert_one(student_doc)
@@ -354,154 +353,85 @@ def _ensure_student_account(db, enrollment_doc: dict) -> tuple[str, str, bool]:
 
 
 def _send_referral_emails(db, enrollment_doc: dict, class_doc: dict, assigned_staff_name: str, student_email: str, password: str, is_new_account: bool):
-    """Send the 3 emails to a referred student. Tracks if already sent to avoid duplicates."""
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    student_name = enrollment_doc.get("student_name") or "Student"
-    subject_code = class_doc.get("subject_code") or ""
-    subject_name = class_doc.get("subject_name") or ""
+    """Send one referral email containing the assessment link and account access."""
+    latest = db.enrollments.find_one({"_id": enrollment_doc["_id"]}) or enrollment_doc
+    emails_sent = dict(latest.get("referral_emails_sent") or {})
+    if emails_sent.get("combined_referral"):
+        return
+    # Do not resend completed notifications from before combined emails existed.
+    if all(emails_sent.get(key) for key in ("referral_notice", "needs_assessment")) and (
+        emails_sent.get("credentials") or emails_sent.get("welcome_existing_account")
+    ):
+        return
+
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
-    login_url = f"{frontend_url}/student-login"
-    
-    logger.info(f"Starting email sending for student: {student_name} ({student_email})")
-    logger.info(f"Is new account: {is_new_account}, Password generated: {bool(password)}")
-    
-    # Check if emails were already sent for this enrollment (to avoid duplicates)
-    emails_sent = enrollment_doc.get("referral_emails_sent") or {}
-    logger.info(f"Previously sent emails: {list(emails_sent.keys())}")
-    
-    # Email 1: Referral Notice (only if not already sent for this class)
-    if not emails_sent.get("referral_notice"):
-        logger.info(f"Sending referral notice email to {student_email}")
-        try:
-            success, error = send_referral_notice_email(
-                student_email,
-                student_name,
-                subject_code,
-                subject_name,
-                assigned_staff_name,
+    invitation = dict(latest.get("needs_assessment_invitation") or {})
+    token = invitation.get("token") or secrets.token_urlsafe(32)
+    invitation.update({"token": token, "email": student_email})
+    invitation.setdefault("status", "pending")
+    # Persist the link before sending so it is usable as soon as mail arrives.
+    db.enrollments.update_one({"_id": latest["_id"]}, {"$set": {"needs_assessment_invitation": invitation}})
+    try:
+        success, error = send_combined_referral_email(
+            to_email=student_email,
+            user_name=latest.get("student_name") or "Student",
+            subject_code=class_doc.get("subject_code") or "",
+            subject_name=class_doc.get("subject_name") or "",
+            assigned_amu_staff=assigned_staff_name,
+            form_link=f"{frontend_url}/needs-assessment/{token}",
+            login_url=f"{frontend_url}/student-login",
+            password=password if is_new_account else None,
+        )
+    except Exception as exc:
+        success, error = False, str(exc)
+    if success:
+        if is_new_account and password:
+            db.students.update_one(
+                {"email": student_email.lower(), "credentials_delivery_pending": True},
+                {"$unset": {"credentials_delivery_pending": ""}},
             )
-            if success:
-                emails_sent["referral_notice"] = datetime.now(timezone.utc).isoformat()
-                db.enrollments.update_one(
-                    {"_id": enrollment_doc["_id"]},
-                    {"$set": {"referral_emails_sent": emails_sent}}
-                )
-                logger.info(f"Referral notice email sent successfully to {student_email}")
-            else:
-                logger.warning(f"Failed to send referral notice email to {student_email}: {error}")
-        except Exception as e:
-            logger.warning(f"Failed to send referral notice email to {student_email}: {e}")
+        now = datetime.now(timezone.utc)
+        timestamp = now.isoformat()
+        emails_sent.update({"combined_referral": timestamp, "referral_notice": timestamp, "needs_assessment": timestamp})
+        emails_sent["credentials" if is_new_account and password else "welcome_existing_account"] = timestamp
+        invitation.update({"status": "completed" if invitation.get("submitted_at") else "sent", "sent_at": now, "last_error": None})
+        updates = {"referral_emails_sent": emails_sent, "needs_assessment_invitation": invitation}
     else:
-        logger.info(f"Referral notice email already sent to {student_email}, skipping")
-    
-    # Email 2: Needs Assessment Form (create token and send - only if not already sent)
-    if not emails_sent.get("needs_assessment"):
-        logger.info(f"Sending needs assessment email to {student_email}")
-        try:
-            token = secrets.token_urlsafe(32)
-            form_link = f"{frontend_url}/needs-assessment/{token}"
-            
-            # Store the invitation
-            existing_invitation = enrollment_doc.get("needs_assessment_invitation") or {}
-            invitation = {
-                "token": token,
-                "email": student_email,
-                "status": "sent",
-                "sent_at": datetime.now(timezone.utc),
-                "submitted_at": existing_invitation.get("submitted_at"),
-            }
-            db.enrollments.update_one(
-                {"_id": enrollment_doc["_id"]},
-                {"$set": {"needs_assessment_invitation": invitation}}
-            )
-            
-            success, error = send_needs_assessment_email(
-                student_email,
-                student_name,
-                form_link,
-                None,  # No custom message for automatic referral
-            )
-            if success:
-                emails_sent["needs_assessment"] = datetime.now(timezone.utc).isoformat()
-                db.enrollments.update_one(
-                    {"_id": enrollment_doc["_id"]},
-                    {"$set": {"referral_emails_sent": emails_sent}}
-                )
-                logger.info(f"Needs assessment email sent successfully to {student_email}")
-            else:
-                logger.warning(f"Failed to send needs assessment email to {student_email}: {error}")
-        except Exception as e:
-            logger.warning(f"Failed to send needs assessment email to {student_email}: {e}")
-    else:
-        logger.info(f"Needs assessment email already sent to {student_email}, skipping")
-    
-    # Refresh enrollment to get updated email status before checking credentials
+        invitation["last_error"] = error or "Failed to send referral email"
+        updates = {"needs_assessment_invitation": invitation}
+        logger.warning("Combined referral email failed for %s", student_email)
+    db.enrollments.update_one({"_id": latest["_id"]}, {"$set": updates})
+
+
+def _deliver_student_referral_email(db, enrollment_doc, class_doc, assigned_staff_name):
+    latest = db.enrollments.find_one({"_id": enrollment_doc["_id"]}) or enrollment_doc
+    sent = latest.get("referral_emails_sent") or {}
+    if sent.get("combined_referral") or (
+        sent.get("referral_notice") and sent.get("needs_assessment")
+        and (sent.get("credentials") or sent.get("welcome_existing_account"))
+    ):
+        return
+    enrollment_doc = latest
+    # Ensure student account exists and get credentials
+    student_email, password, is_new_account = _ensure_student_account(db, enrollment_doc)
+
+    # Refresh the enrollment document to get the updated email if it was added
     if student_email and not enrollment_doc.get("student_email"):
         refreshed_enrollment = db.enrollments.find_one({"_id": enrollment_doc["_id"]})
         if refreshed_enrollment:
             enrollment_doc = refreshed_enrollment
-            emails_sent = enrollment_doc.get("referral_emails_sent") or {}
-            logger.info(f"Refreshed enrollment, updated emails_sent: {list(emails_sent.keys())}")
-    
-    # Email 3: Account Credentials (only if new account and not already sent)
-    # For existing accounts, send a welcome email instead
-    logger.info(f"Credentials email check - is_new_account: {is_new_account}, has_password: {bool(password)}, already_sent: {bool(emails_sent.get('credentials'))}")
-    if is_new_account and password and not emails_sent.get("credentials"):
-        logger.info(f"Sending credentials email to {student_email}")
-        logger.info(f"  Login URL: {login_url}")
-        try:
-            success, error = send_student_credentials_email(
-                student_email,
-                student_name,
-                password,
-                login_url,
-            )
-            if success:
-                emails_sent["credentials"] = datetime.now(timezone.utc).isoformat()
-                db.enrollments.update_one(
-                    {"_id": enrollment_doc["_id"]},
-                    {"$set": {"referral_emails_sent": emails_sent}}
-                )
-                logger.info(f"Credentials email sent successfully to {student_email}")
-            else:
-                logger.warning(f"Failed to send credentials email to {student_email}: {error}")
-        except Exception as e:
-            logger.warning(f"Failed to send credentials email to {student_email}: {e}")
-    elif not is_new_account and not emails_sent.get("welcome_existing_account"):
-        # Send welcome email for existing accounts (they can use their existing credentials)
-        logger.info(f"Sending welcome email for existing account to {student_email}")
-        try:
-            success, error = send_existing_account_welcome_email(
-                student_email,
-                student_name,
-                login_url,
-                subject_code,
-                subject_name,
-            )
-            if success:
-                emails_sent["welcome_existing_account"] = datetime.now(timezone.utc).isoformat()
-                db.enrollments.update_one(
-                    {"_id": enrollment_doc["_id"]},
-                    {"$set": {"referral_emails_sent": emails_sent}}
-                )
-                logger.info(f"Welcome email for existing account sent successfully to {student_email}")
-            else:
-                logger.warning(f"Failed to send welcome email to {student_email}: {error}")
-        except Exception as e:
-            logger.warning(f"Failed to send welcome email to {student_email}: {e}")
-    else:
-        if not is_new_account:
-            logger.info(f"Credentials email not sent - account already exists for {student_email}")
-        elif not password:
-            logger.info(f"Credentials email not sent - no password generated for {student_email}")
-        elif emails_sent.get("credentials"):
-            logger.info(f"Credentials email already sent to {student_email}, skipping")
-        elif emails_sent.get("welcome_existing_account"):
-            logger.info(f"Welcome email already sent to {student_email}, skipping")
-        else:
-            logger.info(f"Credentials email not sent - unknown reason for {student_email}")
+
+    # Send one combined email to the student (function handles deduplication)
+    if student_email:
+        _send_referral_emails(
+            db,
+            enrollment_doc,
+            class_doc,
+            assigned_staff_name,
+            student_email,
+            password,
+            is_new_account,
+        )
 
 
 def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool:
@@ -635,6 +565,7 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
     merged_bool_reasons = {k: v for k, v in merged_reasons.items() if k != "mtg_grade_value"}
     same_reasons = existing_bool_reasons == merged_bool_reasons
     if already_referred and already_assigned and same_reasons:
+        _deliver_student_referral_email(db, enrollment_doc, class_doc, assigned_staff_name)
         return False
 
     # Get subject information for referral tracking
@@ -732,27 +663,8 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
     )
     instructor_name = _normalize_cell((instructor_doc or {}).get("name")) or "Instructor"
 
-    # Ensure student account exists and get credentials
-    student_email, password, is_new_account = _ensure_student_account(db, enrollment_doc)
-    
-    # Refresh the enrollment document to get the updated email if it was added
-    if student_email and not enrollment_doc.get("student_email"):
-        refreshed_enrollment = db.enrollments.find_one({"_id": enrollment_doc["_id"]})
-        if refreshed_enrollment:
-            enrollment_doc = refreshed_enrollment
-    
-    # Send the 3 emails to the student (function handles deduplication)
-    if student_email:
-        _send_referral_emails(
-            db,
-            enrollment_doc,
-            class_doc,
-            assigned_staff_name,
-            student_email,
-            password,
-            is_new_account,
-        )
-    
+    _deliver_student_referral_email(db, enrollment_doc, class_doc, assigned_staff_name)
+
     if not already_referred:
         if assigned_staff_id:
             create_notification(
@@ -2894,6 +2806,36 @@ def _build_full_name(row, keys):
     return None
 
 
+def _upload_content_signals(rows: list[dict]) -> tuple[bool, bool]:
+    """Identify grade and attendance structures independently of the upload target."""
+    keys = list(dict.fromkeys(str(key) for row in rows for key in row))
+    headers = [re.sub(r"[_\W]+", " ", re.sub(r"([A-Za-z])(\d)", r"\1 \2", key).lower()).strip() for key in keys]
+    grades = r"\b(grade|grades|gradesheet|midterm|finalterm|prelim|final|gpa|quiz|quizzes|exam|examination|score|scores|points|rating|laboratory|lab|class standing|major output|mtg|ftg|fg|cs|mo|project|activity)\b"
+    attendance = r"\b(attendance|present|absent|absences|tardy|tardiness|late|face to face|f2f|synchronous|asynchronous|async|signature|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b"
+    has_grades = any(re.search(grades, header) for header in headers)
+    has_attendance = any(re.search(attendance, header) or header == "date" for header in headers)
+    has_dates = any(re.fullmatch(r"\d{1,4}[-/]\d{1,2}(?:[-/]\d{1,4})?(?:\s.*)?", key.strip()) for key in keys)
+    day_keys = [key for key in keys if re.fullmatch(r"(?:[1-9]|[12]\d|3[01])", key.strip())]
+    marks = {"p", "a", "l", "present", "absent", "late", "x", "\u2713", "\u2714", "\u2717", "\u2611", "\u2612", "\u2718", "yes", "no", "y", "n"}
+    has_marks = len(day_keys) >= 2 and any(
+        _normalize_cell(row.get(key, "")).lower() in marks
+        for row in rows for key in day_keys
+    )
+    return has_grades, has_attendance or has_dates or has_marks
+
+
+def _upload_content_error(rows: list[dict], file_type: str) -> str:
+    has_grades, has_attendance = _upload_content_signals(rows)
+    expected = {"classlist": "class list", "gradesheet": "gradesheet", "attendance": "attendance sheet"}[file_type]
+    if has_grades and has_attendance:
+        return f"Only upload a {expected} file. This file contains both grade and attendance columns. Please upload a separate {expected}."
+    detected = "gradesheet" if has_grades else "attendance" if has_attendance else "classlist"
+    if detected != file_type:
+        detected_label = {"classlist": "class list", "gradesheet": "gradesheet", "attendance": "attendance sheet"}[detected]
+        return f"Only upload a {expected} file. This appears to be a {detected_label}. Please upload a {expected}."
+    return ""
+
+
 def _validate_parsed_data(rows: list[dict], file_type: str) -> tuple[bool, str]:
     """Validate parsed data before processing with clear error messages."""
     if not rows:
@@ -2915,6 +2857,11 @@ def _validate_parsed_data(rows: list[dict], file_type: str) -> tuple[bool, str]:
                 "student name, student ID, or student email."
             )
     
+    if file_type in ("classlist", "gradesheet", "attendance"):
+        error = _upload_content_error(rows, file_type)
+        if error:
+            return False, error
+
     # Check for minimum data
     if len(rows) < 1:
         return False, "File appears to be empty or has no data rows"
@@ -2924,6 +2871,10 @@ def _validate_parsed_data(rows: list[dict], file_type: str) -> tuple[bool, str]:
     if len(non_empty_rows) < 1:
         return False, "File contains only empty rows"
     
+    if file_type in ("classlist", "gradesheet", "attendance") and not any(
+        any(_extract_student_identity(row, list(row))) for row in non_empty_rows
+    ):
+        return False, "No student identities found. Please include student names, IDs, or emails."
     return True, ""
 
 
@@ -3659,13 +3610,6 @@ def upload_class_files(
                 raise HTTPException(status_code=400, detail=error_detail)
 
         keys = list(rows[0].keys())
-        if type == "gradesheet":
-            detected_type = _detect_file_type(keys)
-            if detected_type == "attendance":
-                raise HTTPException(
-                    status_code=400,
-                    detail="Attendance files should be uploaded from the Attendance page, not the Grades page.",
-                )
         email_col = _find_column(keys, ['email'])
         # Detect name columns for excluding from extra data
         _name_cols = set()
@@ -3697,7 +3641,12 @@ def upload_class_files(
                     if cleaned and cleaned != normalized:
                         existing_by_id[cleaned] = e
             
-            existing_by_email = {e.get("student_email"): e for e in existing_enrollments}
+            existing_by_email = {}
+            for enrollment in existing_enrollments:
+                email = _normalize_cell(enrollment.get("student_email")).lower()
+                if email:
+                    # Ambiguous emails must not merge different students.
+                    existing_by_email[email] = None if email in existing_by_email else enrollment
             # Name lookup becomes last resort only
             existing_by_name = {}
             for e in existing_enrollments:
@@ -3754,9 +3703,12 @@ def upload_class_files(
                     if existing:
                         lookup_method = "student_id"
 
-                # 2. Only try email if ID is missing (not if ID lookup failed)
-                if not existing and not student_id and student_email:
-                    existing = existing_by_email.get(student_email)
+                # A corrected student number can still identify the same student
+                # through a unique email, preserving grades and attendance.
+                if not existing and student_email:
+                    existing = existing_by_email.get(student_email.lower())
+                    if existing and existing["_id"] in retained_enrollment_ids:
+                        existing = None
                     if existing:
                         lookup_method = "email"
 
@@ -3783,6 +3735,7 @@ def upload_class_files(
                         existing_updates["section_code"] = section_code
                     if existing_updates:
                         db.enrollments.update_one({"_id": existing["_id"]}, {"$set": existing_updates})
+                        updated_count += 1
                     add_summary['skipped'] += 1
                     skipped_students.append({"email": student_email, "name": student_name})
                 else:
@@ -4134,6 +4087,7 @@ def upload_class_files(
     )
     if type == "classlist":
         result.update(add_summary)
+        result["updated"] = updated_count
         result["added_students"] = added_students
         result["skipped_students"] = skipped_students
         result["invalid_students"] = invalid_students
@@ -4188,13 +4142,13 @@ def _detect_file_type(keys):
 def upload_and_create_classlist(
     request: Request,
     actor: dict = Depends(get_current_actor),
-    files: List[UploadFile] = File(..., description="CSV, XLSX, or DOCX files (Classlist, Gradesheet, or Attendance)"),
+    files: List[UploadFile] = File(..., description="CSV, XLSX, or DOCX class list files"),
     instructor_id: str = Form(...),
     subject_code: str = Form(None, description="Optional: Subject/Course code (required if not in file)"),
     course_code: str = Form(None, description="Optional alias for subject_code"),
     subject_name: str = Form(None, description="Optional: Subject/Course name")
 ):
-    """Upload classlist, gradesheet, and/or attendance files. Auto-detects file types and processes accordingly."""
+    """Upload validated class lists and create a class from their roster."""
     try:
         db = get_db()
     except ServerSelectionTimeoutError:
@@ -4238,24 +4192,12 @@ def upload_and_create_classlist(
                 logger.error(f"Failed to parse {upload.filename}: {exc}")
                 raise HTTPException(status_code=400, detail=f"Failed to parse {upload.filename}.")
 
-            if not rows:
-                logger.warning(f"{upload.filename} has no data rows")
-                continue
-                continue
-
+            is_valid, error_msg = _validate_parsed_data(rows, "classlist")
+            if not is_valid:
+                raise HTTPException(status_code=400, detail=f"{upload.filename}: {error_msg}")
             keys = list(rows[0].keys())
-            file_type = _detect_file_type(keys)
-            
-            if file_type is None or file_type == "unknown":
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        f"Could not determine file type for {upload.filename}. "
-                        "Ensure it has recognizable columns for classlist (name/id), "
-                        "gradesheet (grade/score), or attendance (month/date/signature)."
-                    ),
-                )
-            
+            file_type = "classlist"
+
             if file_type not in file_data:
                 file_data[file_type] = []
             file_data[file_type].extend(rows)

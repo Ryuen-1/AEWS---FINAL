@@ -330,7 +330,6 @@ export default function ClassGrades() {
   return (
     <DashboardLayout title="Instructor Dashboard" subtitle={instructorSubtitle}>
       <div className="space-y-3">
-        {gradesheetError && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">{gradesheetError}</div>}
 
         <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-sm">
           <input

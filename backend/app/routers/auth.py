@@ -15,7 +15,7 @@ from email_validator import validate_email, EmailNotValidError
 
 from app.activity_log_utils import create_activity_log
 from app.authz import create_access_token, get_current_actor
-from slowapi import Limiter
+from app.rate_limiting import Limiter
 from slowapi.util import get_remote_address
 log = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ def _validate_email_format(email: str) -> str:
     except EmailNotValidError as e:
         raise HTTPException(status_code=400, detail=f"Invalid email address: {str(e)}")
 
-from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS
+from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS, email_is_used
 from app.authz import normalize_role
 from app.email_sender import is_smtp_configured, send_password_change_code, send_password_reset_email, send_test_email, send_verification_email
 from app.notification_utils import create_notification
@@ -194,15 +194,15 @@ def _signup_instructor_amu_flow(db, coll, body, existing, doc_base):
 def signup(request: Request, body: SignUpRequest):
     try:
         # Validate email format
-        normalized_email = _validate_email_format(body.email)
+        normalized_email = _validate_email_format(body.email.strip()).lower()
 
         db = get_db()
         coll_name = get_collection_for_role(body.role)
         coll = db[coll_name]
         organization_value = (body.college or "").strip()
-        existing = coll.find_one({"email": normalized_email})
-        if existing and existing.get("email_verified") is True:
-            raise HTTPException(status_code=400, detail="Email already registered")
+        if email_is_used(db, normalized_email):
+            raise HTTPException(status_code=400, detail="this email is already used")
+        existing = None
         doc_base = {
             "name": body.name.strip(),
             "email": normalized_email,

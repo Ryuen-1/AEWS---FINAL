@@ -15,7 +15,7 @@ from pymongo.errors import DuplicateKeyError
 
 from app.activity_log_utils import create_activity_log
 from app.authz import ensure_self_or_admin, get_current_actor, _token_secret, decode_access_token
-from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS
+from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS, email_is_used
 from app.email_sender import send_verification_email, send_email_change_code
 from app.routers.auth import _hash_password
 from app.schemas import UserCreate, UserResponse, UserUpdate, EmailChangeRequest, EmailChangeVerify
@@ -209,9 +209,10 @@ def create_user(body: UserCreate, actor: dict = Depends(get_current_actor)):
     db = get_db()
     coll_name = get_collection_for_role(body.role)
     coll = db[coll_name]
-    if coll.find_one({"email": body.email}):
-        raise HTTPException(status_code=400, detail="Email already registered")
+    if email_is_used(db, body.email):
+        raise HTTPException(status_code=400, detail="this email is already used")
     doc = body.model_dump()
+    doc["email"] = body.email.strip().lower()
     password = doc.pop("password", None)
     if password:
         doc["password_hash"] = _hash_password(password)

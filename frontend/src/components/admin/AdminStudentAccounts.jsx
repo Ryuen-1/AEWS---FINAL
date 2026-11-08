@@ -328,7 +328,7 @@ export default function AdminStudentAccounts() {
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Student Account</h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  Are you sure you want to delete the account for <strong>{deleteTarget.name}</strong>? This action cannot be undone.
+                  Permanently delete <strong>{deleteTarget.name}</strong> and all their class records, referrals, needs assessments, grades, attendance, and mentoring history? This action cannot be undone.
                 </p>
                 <div className="flex items-center justify-end gap-3">
                   <button

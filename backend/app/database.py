@@ -1,4 +1,5 @@
 import os
+import re
 from pymongo import MongoClient
 from pymongo.database import Database
 
@@ -32,6 +33,13 @@ def get_collection_for_role(role: str) -> str:
     if role not in ROLE_TO_COLLECTION:
         raise ValueError(f"Invalid role: {role}")
     return ROLE_TO_COLLECTION[role]
+
+
+def email_is_used(db: Database, email: str) -> bool:
+    """Reserve an email across every account role, regardless of account status."""
+    query = {"email": {"$regex": f"^\\s*{re.escape(email.strip())}\\s*$", "$options": "i"}}
+    return any(db[name].find_one(query, {"_id": 1}) is not None
+               for name in dict.fromkeys(ROLE_TO_COLLECTION.values()))
 
 
 def ensure_query_indexes(db: Database) -> None:

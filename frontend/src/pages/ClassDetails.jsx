@@ -28,6 +28,7 @@ import {
   previewClasslist,
   listUsers,
 } from '../api'
+import { loadClasslistSource, saveClasslistSource, readClasslistSource, pickClasslistSource } from '../lib/classlistSource'
 import { sortStudentsByName } from '../lib/studentSort'
 
 const AI_CHECKBOX_FIELDS = [
@@ -213,7 +214,17 @@ export default function ClassDetails() {
 
   const [uploadingClasslist, setUploadingClasslist] = useState(false)
   const [classlistError, setClasslistError] = useState('')
-  const classlistInputRef = useRef()
+  const classlistSourceRef = useRef(null)
+  const [classlistSuccess, setClasslistSuccess] = useState('')
+
+  useEffect(() => {
+    classlistSourceRef.current = null
+    let active = true
+    loadClasslistSource(user?.id, classId).then(handle => {
+      if (active) classlistSourceRef.current = handle
+    })
+    return () => { active = false }
+  }, [user?.id, classId])
 
   const [aiUploadMessage, setAiUploadMessage] = useState('')
 
@@ -223,6 +234,46 @@ export default function ClassDetails() {
   const [previewStudents, setPreviewStudents] = useState([])
   const [previewFileName, setPreviewFileName] = useState('')
   const [filesToUpload, setFilesToUpload] = useState(null)
+
+  const previewUpdatedClasslist = async (file) => {
+    setClasslistError('')
+    setClasslistSuccess('')
+    setPreviewError('')
+    setPreviewFileName(file.name)
+    setFilesToUpload([file])
+    setPreviewStudents([])
+    setPreviewLoading(true)
+    setShowPreview(true)
+    try {
+      const data = await previewClasslist(file, classId)
+      setPreviewStudents(data.students || [])
+    } catch (error) {
+      setPreviewError(error.message || 'Failed to read updated class list')
+      setFilesToUpload(null)
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  const handleUpdateClasslist = async () => {
+    setClasslistError('')
+    try {
+      const handle = classlistSourceRef.current || await loadClasslistSource(user?.id, classId)
+      if (!handle) {
+        setClasslistError('No local class list file is linked yet. Use "Link class list file" once, then Update class list will read your saved edits automatically.')
+        return
+      }
+      classlistSourceRef.current = handle
+      const file = await readClasslistSource(handle)
+      await previewUpdatedClasslist(file)
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        setClasslistError(error.name === 'NotFoundError'
+          ? 'The linked class list file was moved or deleted. Use Link class list file to reconnect it.'
+          : error.message || 'Failed to read linked class list file')
+      }
+    }
+  }
 
   const [classData, setClassData] = useState(null)
   const [classLoading, setClassLoading] = useState(true)
@@ -466,50 +517,14 @@ export default function ClassDetails() {
                 </div>
 
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <input
-                    type="file"
-                    ref={classlistInputRef}
-                    accept=".csv,.xlsx"
-                    style={{ display: 'none' }}
-                    onChange={async (e) => {
-                      setClasslistError('')
-                      setPreviewError('')
-                      const files = e.target.files
-                      if (!files || files.length === 0) {
-                        setClasslistError('Please select a class list file (CSV or XLSX).')
-                        return
-                      }
-
-                      const file = files[0]
-                      setPreviewFileName(file.name)
-                      setFilesToUpload(files)
-                      setPreviewLoading(true)
-                      setPreviewError('')
-                      setPreviewStudents([])
-                      setShowPreview(false)
-
-                      try {
-                        const data = await previewClasslist(file, classId)
-                        setPreviewStudents(data.students || [])
-                        setShowPreview(true)
-                      } catch (err) {
-                        const errorMessage = err.message || 'Failed to preview file'
-                        setPreviewError(errorMessage)
-                        setClasslistError(errorMessage)
-                      } finally {
-                        setPreviewLoading(false)
-                      }
-                    }}
-                  />
-
                   <button
                     type="button"
                     className="flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1.75 rounded-lg bg-white/15 border border-white/25 text-white text-[11px] font-semibold hover:bg-white/20 transition-colors disabled:opacity-60 disabled:hover:bg-white/15"
-                    disabled={uploadingClasslist}
-                    onClick={() => classlistInputRef.current && classlistInputRef.current.click()}
+                    disabled={uploadingClasslist || previewLoading}
+                    onClick={handleUpdateClasslist}
                   >
                     <Upload className="w-4 h-4" />
-                    {uploadingClasslist ? 'Uploading...' : 'Upload class list'}
+                    {uploadingClasslist ? 'Updating...' : 'Update class list'}
                   </button>
                   <button
                     type="button"
@@ -542,8 +557,26 @@ export default function ClassDetails() {
                   Class roster
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Students enrolled in this class. Use Needs Assessment for manual entry or bulk upload a needs-assessment sheet.
+                  Save changes in your linked class list file, then click "Update class list" to preview the latest contents.
                 </p>
+                <button type="button" className="mt-1 text-xs text-blue-600 hover:underline"
+                  disabled={uploadingClasslist || previewLoading}
+                  onClick={async () => {
+                    if (!window.showOpenFilePicker) {
+                      setClasslistError('Linking a local file requires a supported browser such as Chrome or Edge.')
+                      return
+                    }
+                    try {
+                      const [handle] = await pickClasslistSource()
+                      await saveClasslistSource(user?.id, classId, handle)
+                      classlistSourceRef.current = handle
+                      setClasslistSuccess('Class list file linked. Save your edits, then click Update class list.')
+                    } catch (error) {
+                      if (error.name !== 'AbortError') setClasslistError(error.message)
+                    }
+                  }}>
+                  Link class list file
+                </button>
                 <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
                   Midterm grades from 2.50 down to 5.00 are automatically referred to AMU.
                 </p>
@@ -560,7 +593,7 @@ export default function ClassDetails() {
                 </div>
               ) : roster.length === 0 ? (
                 <div className="p-6 text-center text-sm text-slate-500">
-                  No students enrolled yet. Use "Upload class list" to fetch student names and student numbers.
+                  No students enrolled yet. Use "Update class list" to add students from your class list file.
                 </div>
               ) : (
                 <>
@@ -679,6 +712,7 @@ export default function ClassDetails() {
       </div>
 
       <StudentPreviewModal
+        isUpdate
         isOpen={showPreview}
         isLoading={previewLoading}
         students={previewStudents}
@@ -689,7 +723,6 @@ export default function ClassDetails() {
           setPreviewStudents([])
           setPreviewError('')
           setFilesToUpload(null)
-          if (classlistInputRef.current) classlistInputRef.current.value = ''
         }}
         onConfirm={async () => {
           setShowPreview(false)
@@ -702,23 +735,22 @@ export default function ClassDetails() {
           try {
             await uploadClassFiles(classId, filesToUpload, 'classlist')
             uploadSucceeded = true
+            setClasslistSuccess('Class list updated successfully.')
           } catch (err) {
-            const errorMessage = err.message || 'Upload failed'
+            const errorMessage = err.message || 'Failed to update class list'
             setClasslistError(errorMessage)
           } finally {
             setUploadingClasslist(false)
-            if (classlistInputRef.current) classlistInputRef.current.value = ''
             setFilesToUpload(null)
             setPreviewStudents([])
             if (uploadSucceeded) {
-              fetchClass()
-              fetchRoster()
+              await Promise.all([fetchClass(), fetchRoster()])
             }
           }
         }}
       />
       {uploadingClasslist && (
-        <UploadProgressOverlay title="Uploading class list..." />
+        <UploadProgressOverlay title="Updating class list..." />
       )}
       {activeAIStudent && (
         <HeaderAwareOverlay
@@ -1007,13 +1039,15 @@ export default function ClassDetails() {
         onClose={() => setReferralMessage('')}
       />
       <InlineToast
+        message={classlistSuccess}
+        tone="success"
+        onClose={() => setClasslistSuccess('')}
+      />
+      <InlineToast
         message={classlistError}
         tone="error"
         onClose={() => setClasslistError('')}
       />
-      {uploadingClasslist && (
-        <UploadProgressOverlay title="Uploading classlist..." />
-      )}
     </DashboardLayout>
   )
 }

@@ -57,24 +57,23 @@ def create_access_token(*, user_id: str, role: str, ttl_seconds: int = TOKEN_TTL
 
 def decode_access_token(token: str) -> dict:
     try:
+        if not isinstance(token, str):
+            raise ValueError("Invalid token type")
         payload_b64, signature_b64 = token.split(".", 1)
-    except ValueError as exc:
-        raise HTTPException(status_code=401, detail="Invalid authentication token") from exc
-
-    expected_sig = hmac.new(_token_secret(), payload_b64.encode("ascii"), hashlib.sha256).digest()
-    provided_sig = _b64url_decode(signature_b64)
-    if not hmac.compare_digest(provided_sig, expected_sig):
-        raise HTTPException(status_code=401, detail="Invalid authentication token")
-
-    try:
+        expected_sig = hmac.new(_token_secret(), payload_b64.encode("ascii"), hashlib.sha256).digest()
+        provided_sig = _b64url_decode(signature_b64)
+        if not hmac.compare_digest(provided_sig, expected_sig):
+            raise HTTPException(status_code=401, detail="Invalid authentication token")
         payload = json.loads(_b64url_decode(payload_b64).decode("utf-8"))
-    except (ValueError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        if not isinstance(payload, dict):
+            raise ValueError("Invalid token payload")
+        role = normalize_role(payload.get("role"))
+        user_id = str(payload.get("sub") or "").strip()
+        exp = int(payload.get("exp") or 0)
+    except (ValueError, TypeError, AttributeError, OverflowError, UnicodeError) as exc:
         raise HTTPException(status_code=401, detail="Invalid authentication token") from exc
 
-    role = normalize_role(payload.get("role"))
-    user_id = str(payload.get("sub") or "").strip()
-    exp = int(payload.get("exp") or 0)
-    if role not in VALID_ROLES or not user_id or exp < int(time.time()):
+    if role not in VALID_ROLES or not user_id or exp <= int(time.time()):
         raise HTTPException(status_code=401, detail="Authentication required")
     return {"id": user_id, "role": role}
 

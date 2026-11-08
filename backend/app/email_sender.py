@@ -544,6 +544,101 @@ Academic Early Warning System
       return False, str(e)
 
 
+def send_combined_referral_email(
+    to_email: str, user_name: str, subject_code: str, subject_name: str,
+    assigned_amu_staff: str, form_link: str, login_url: str, password: str | None = None,
+) -> tuple[bool, str | None]:
+    """Deliver referral details, assessment invitation and account access in one email."""
+    host, port, smtp_user, smtp_password, from_email = _get_gmail_config()
+    if host is None:
+        return False, "Gmail not configured"
+    subject = "AMU referral, needs assessment and student account access"
+    account_text = (
+        f"Your student account has been created.\nEmail: {to_email}\nPassword: {password}\n"
+        "Please change your password after signing in and complete your student profile."
+        if password else
+        f"Email: {to_email}\nUse your existing student account password. If you have forgotten it, use Forgot password on the sign-in page."
+    )
+    plain = (
+        f"Hello {user_name},\n\nReferral notice\n"
+        f"You have been referred to the Academic Mentoring Unit (AMU) for academic support based on your midterm grade in {subject_code}: {subject_name}.\n"
+        f"Assigned AMU staff: {assigned_amu_staff}\n\n"
+        f"Step 1: Student account access\nLogin URL: {login_url}\n{account_text}\n\n"
+        f"Step 2: Needs assessment\nPlease complete your needs assessment here:\n{form_link}\n\n"
+        "If you need help, contact your instructor or AMU staff.\n\nAcademic Early Warning System"
+    )
+    password_row = (
+        f'<tr><td style="padding:8px 18px 16px"><div style="font-size:12px;color:#64748b;margin-bottom:6px">TEMPORARY PASSWORD</div><div style="font-family:Consolas,monospace;font-size:19px;letter-spacing:1px;color:#0f172a;word-break:break-all">{escape(password)}</div></td></tr>'
+        if password else ''
+    )
+    account_note = (
+        'Your student account is ready. Use the details below to sign in.' if password else
+        'Use your existing student account password. If you have forgotten it, use Forgot password on the sign-in page.'
+    )
+    security_note = (
+        'After signing in, change your temporary password and complete your student profile. Keep your login details private.'
+        if password else 'Complete your student profile after signing in. Keep your login details private.'
+    )
+    html = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Academic support from AMU</title></head>
+<body style="margin:0;padding:0;background-color:#eef2f7;font-family:Arial,Helvetica,sans-serif;color:#334155;-webkit-text-size-adjust:100%">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">Your AMU referral details, needs assessment and student account access, all in one place.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#eef2f7"><tr><td align="center" style="padding:28px 12px">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #dbe3ee;border-radius:16px;overflow:hidden">
+<tr><td style="padding:30px 28px;background-color:#173a75;border-bottom:5px solid #60a5fa">
+<p style="margin:0 0 12px;font-size:11px;line-height:16px;letter-spacing:2px;font-weight:bold;color:#bfdbfe">ACADEMIC EARLY WARNING SYSTEM</p>
+<h1 style="margin:0;color:#ffffff;font-size:27px;line-height:35px;font-weight:bold">Your academic support starts here</h1>
+<p style="margin:12px 0 0;color:#dbeafe;font-size:14px;line-height:22px">Academic Mentoring Unit &nbsp;&bull;&nbsp; Student referral</p>
+</td></tr>
+<tr><td style="padding:28px 28px 24px">
+<p style="margin:0 0 14px;font-size:16px;line-height:25px;color:#0f172a">Hello {escape(user_name)},</p>
+<h2 style="margin:0 0 10px;font-size:19px;line-height:26px;color:#0f172a">Referral notice</h2>
+<p style="margin:0 0 20px;font-size:15px;line-height:25px">You have been referred to the Academic Mentoring Unit (AMU) for academic support based on your midterm grade. Your AMU staff will help you identify the support you need.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#eff6ff;border:1px solid #dbeafe;border-radius:10px">
+<tr><td style="padding:16px 18px 8px"><p style="margin:0 0 5px;font-size:11px;letter-spacing:1px;color:#47658d;font-weight:bold">REFERRED CLASS</p><p style="margin:0;font-size:16px;line-height:24px;font-weight:bold;color:#173a75">{escape(subject_code)}: {escape(subject_name)}</p></td></tr>
+<tr><td style="padding:8px 18px 16px"><p style="margin:0 0 5px;font-size:11px;letter-spacing:1px;color:#47658d;font-weight:bold">ASSIGNED AMU STAFF</p><p style="margin:0;font-size:15px;line-height:23px;color:#0f172a">{escape(assigned_amu_staff) if assigned_amu_staff else 'To be assigned'}</p></td></tr>
+</table></td></tr>
+<tr><td style="padding:0 28px"><div style="border-top:1px solid #e2e8f0;font-size:1px;line-height:1px">&nbsp;</div></td></tr>
+<tr><td style="padding:24px 28px 28px">
+<p style="margin:0 0 8px;font-size:11px;letter-spacing:1.5px;font-weight:bold;color:#2563eb">STEP 01</p>
+<h2 style="margin:0 0 10px;font-size:20px;line-height:28px;color:#0f172a">Access your student account</h2>
+<p style="margin:0 0 16px;font-size:15px;line-height:25px">{account_note}</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:10px">
+<tr><td style="padding:16px 18px"><div style="font-size:12px;color:#64748b;margin-bottom:6px">EMAIL ADDRESS</div><div style="font-size:15px;line-height:23px;color:#0f172a;word-break:break-all">{escape(to_email)}</div></td></tr>
+{password_row}</table>
+<p style="margin:12px 0 20px;font-size:13px;line-height:21px;color:#64748b">{security_note}</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#173a75" style="border-radius:8px;mso-padding-alt:14px 20px"><a href="{escape(login_url, quote=True)}" style="display:inline-block;padding:14px 20px;font-size:15px;line-height:20px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px">Sign in to student account &rarr;</a></td></tr></table>
+</td></tr>
+<tr><td style="padding:0 28px"><div style="border-top:1px solid #e2e8f0;font-size:1px;line-height:1px">&nbsp;</div></td></tr>
+<tr><td style="padding:24px 28px">
+<p style="margin:0 0 8px;font-size:11px;letter-spacing:1.5px;font-weight:bold;color:#2563eb">STEP 02</p>
+<h2 style="margin:0 0 10px;font-size:20px;line-height:28px;color:#0f172a">Complete your needs assessment</h2>
+<p style="margin:0 0 18px;font-size:15px;line-height:25px">Tell us about your academic challenges and support needs so AMU can guide you.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#2457ce" style="border-radius:8px;mso-padding-alt:14px 20px"><a href="{escape(form_link, quote=True)}" style="display:inline-block;padding:14px 20px;font-size:15px;line-height:20px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px">Complete needs assessment &rarr;</a></td></tr></table>
+</td></tr>
+<tr><td style="padding:20px 28px;background-color:#f8fafc;border-top:1px solid #e2e8f0">
+<p style="margin:0 0 5px;font-size:14px;line-height:22px;font-weight:bold;color:#334155">Need help?</p>
+<p style="margin:0;font-size:13px;line-height:21px;color:#64748b">Contact your instructor or assigned AMU staff for assistance.</p>
+</td></tr></table>
+<p style="margin:18px 0 0;font-size:11px;line-height:18px;color:#64748b">Academic Early Warning System &bull; Academic Mentoring Unit</p>
+</td></tr></table></body></html>"""
+    message = MIMEMultipart("alternative")
+    message["Subject"], message["From"], message["To"] = subject, from_email, to_email
+    message.attach(MIMEText(plain, "plain", "utf-8"))
+    message.attach(MIMEText(html, "html", "utf-8"))
+    try:
+        with smtplib.SMTP(host, port, timeout=15) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(smtp_user, smtp_password)
+            server.sendmail(from_email, to_email, message.as_string())
+        return True, None
+    except Exception as exc:
+        logger.warning("Combined referral email delivery failed: %s", type(exc).__name__)
+        return False, str(exc)
+
+
 def send_referral_notice_email(
     to_email: str,
     user_name: str,

@@ -7,3 +7,11 @@ backend/uploads/*.tmp
 backend/.env
 frontend/.env
 frontend/.env.local
+.pytest_cache/
+.vitest/
+pytest-cache-files-*/
+qa_doc_render/
+qa_formatted_render/
+frontend/node_modules/.vite/
+frontend/node_modules/.vite-temp/
+tmp/eslint-results.json

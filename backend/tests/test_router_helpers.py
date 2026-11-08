@@ -186,6 +186,106 @@ class Phase1ColumnMatchingTests(unittest.TestCase):
 
 
 class Phase3ValidationTests(unittest.TestCase):
+    def test_recheck_compact_headers_and_attendance_aliases(self):
+        for header in ("Quiz1", "Exam2", "Project", "Activity1"):
+            with self.subTest(header=header):
+                row = {"student_id": "1234567890", "name": "John Student", header: "80"}
+                self.assertTrue(_validate_parsed_data([row], "gradesheet")[0])
+                self.assertFalse(_validate_parsed_data([row], "classlist")[0])
+        for header in ("Date", "Signature", "Async"):
+            with self.subTest(header=header):
+                row = {"student_id": "1234567890", "name": "John Student", header: "P"}
+                self.assertTrue(_validate_parsed_data([row], "attendance")[0])
+                self.assertFalse(_validate_parsed_data([row], "gradesheet")[0])
+
+    def test_performance_uploads_require_student_identities(self):
+        for expected, header in (("gradesheet", "MTG"), ("attendance", "Attendance")):
+            with self.subTest(expected=expected):
+                self.assertFalse(_validate_parsed_data([{"student_id": "", header: "80"}], expected)[0])
+
+    def test_real_files_keep_type_validation_after_parsing(self):
+        import csv
+        from openpyxl import Workbook
+        from docx import Document
+
+        for actual, extra in (("classlist", None), ("gradesheet", "MTG"), ("attendance", "Attendance")):
+            headers = ["Student ID", "Student Name"] + ([extra] if extra else [])
+            values = ["1234567890", "John Student"] + (["80"] if extra else [])
+            with tempfile.TemporaryDirectory() as directory:
+                for extension in ("csv", "xlsx", "docx"):
+                    path = Path(directory) / f"record.{extension}"
+                    if extension == "csv":
+                        with path.open("w", newline="", encoding="utf-8") as stream:
+                            csv.writer(stream).writerows([headers, values])
+                    elif extension == "xlsx":
+                        workbook = Workbook()
+                        workbook.active.append(headers)
+                        workbook.active.append(values)
+                        workbook.save(path)
+                        workbook.close()
+                    else:
+                        document = Document()
+                        table = document.add_table(rows=2, cols=len(headers))
+                        for index, text in enumerate(headers):
+                            table.cell(0, index).text = text
+                            table.cell(1, index).text = values[index]
+                        document.save(path)
+                    for expected in ("classlist", "gradesheet", "attendance"):
+                        with self.subTest(actual=actual, extension=extension, expected=expected):
+                            rows = _parse_file_to_rows(path, preferred_type=expected)
+                            self.assertEqual(_validate_parsed_data(rows, expected)[0], actual == expected)
+
+    def test_upload_content_type_matrix(self):
+        fixtures = {
+            "classlist": {"student_id": "123", "name": "John"},
+            "gradesheet": {"student_id": "123", "name": "John", "MTG": "2.5"},
+            "attendance": {"student_id": "123", "name": "John", "Jan 15": "P"},
+        }
+        for actual, row in fixtures.items():
+            for expected in fixtures:
+                with self.subTest(actual=actual, expected=expected):
+                    valid, message = _validate_parsed_data([row], expected)
+                    self.assertEqual(valid, actual == expected)
+                    if not valid:
+                        self.assertIn("Please upload", message)
+
+    def test_upload_rejects_mixed_performance_files(self):
+        rows = [{"student_id": "123", "MTG": "2.5", "Attendance": "90"}]
+        for expected in ("classlist", "gradesheet", "attendance"):
+            with self.subTest(expected=expected):
+                valid, message = _validate_parsed_data(rows, expected)
+                self.assertFalse(valid)
+                self.assertIn("both grade and attendance", message)
+
+    def test_accepts_grade_components_and_numbered_attendance(self):
+        for header in ("CS (30%)", "LAB (30%)", "MO (40%)", "Final_Grade"):
+            with self.subTest(header=header):
+                self.assertEqual(_validate_parsed_data([{"name": "John", header: "80"}], "gradesheet"), (True, ""))
+        self.assertEqual(_validate_parsed_data([{"name": "John", "1": "P", "2": "A"}], "attendance"), (True, ""))
+
+    def test_classlist_rejects_performance_files(self):
+        for header in ("Midterm Grade", "MTG", "Quiz 1", "Attendance", "Jan 15", "2026-11-06"):
+            with self.subTest(header=header):
+                rows = [{"student_id": "123", "name": "John", header: "1"}]
+                valid, message = _validate_parsed_data(rows, "classlist")
+                self.assertFalse(valid)
+                self.assertIn("Please upload a class list", message)
+
+    def test_classlist_rejects_day_number_attendance(self):
+        valid, message = _validate_parsed_data(
+            [{"name": "John", "1": "P", "2": "A"}], "classlist"
+        )
+        self.assertFalse(valid)
+        self.assertIn("attendance", message)
+
+    def test_classlist_accepts_roster_metadata(self):
+        rows = [{"student_id": "123", "name": "May Finalson", "Course": "BIO", "Year Level": "2", "Birth Date": "2005-01-01", "Remarks": "Regular"}]
+        self.assertEqual(_validate_parsed_data(rows, "classlist"), (True, ""))
+
+    def test_classlist_requires_populated_identity(self):
+        valid, _ = _validate_parsed_data([{"student_id": "", "section": "A"}], "classlist")
+        self.assertFalse(valid)
+
     def test_validate_parsed_data_empty_rows(self):
         self.assertEqual(_validate_parsed_data([], "classlist"), (False, "No data found in file"))
 

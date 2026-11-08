@@ -10,7 +10,8 @@ export default function StudentPreviewModal({
   fileName,
   onConfirm,
   onCancel,
-  error
+  error,
+  isUpdate = false
 }) {
   // Disable background scroll when modal is open
   useEffect(() => {
@@ -42,7 +43,7 @@ export default function StudentPreviewModal({
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white flex items-center justify-between">
           <div>
-            <h2 id="student-preview-title" className="text-lg font-bold text-slate-900">Preview Class List</h2>
+            <h2 id="student-preview-title" className="text-lg font-bold text-slate-900">{isUpdate ? 'Preview Updated Class List' : 'Preview Class List'}</h2>
             <p className="text-xs text-slate-600 mt-1">{fileName}</p>
           </div>
           <button
@@ -56,6 +57,11 @@ export default function StudentPreviewModal({
 
         {/* Content */}
         <div className="clean-scrollbar flex-1 overflow-y-auto p-5">
+          {isUpdate && (
+            <p className="mb-4 text-sm text-slate-600">
+              Confirm to update this class using your edited class list file. Matching students will be updated, new students will be added, and students missing from this file will be removed from the class. Grades and attendance for matching students will be kept.
+            </p>
+          )}
           {error && (
             <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
@@ -126,9 +132,9 @@ export default function StudentPreviewModal({
             type="button"
             onClick={onConfirm}
             className="px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium text-xs disabled:opacity-60"
-            disabled={isLoading || sortedStudents.length === 0}
+            disabled={isLoading || !!error || sortedStudents.length === 0}
           >
-            Confirm & Upload
+            {isUpdate ? 'Update class list' : 'Confirm & Upload'}
           </button>
         </div>
       </div>
